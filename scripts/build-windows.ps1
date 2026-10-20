@@ -17,6 +17,16 @@ function Run([string]$Program, [string[]]$Arguments) {
 Run 'cmake' @('-S','.', '-B','build/windows', '-A','x64', "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake", '-DVCPKG_TARGET_TRIPLET=x64-windows-static', '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded$<$<CONFIG:Debug>:Debug>')
 Run 'cmake' @('--build','build/windows','--config','Release','--parallel','2')
 Run 'cmake' @('--install','build/windows','--config','Release','--prefix',"$PWD/build/windows-package")
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+$visualStudio = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+$dumpbin = (Get-ChildItem "$visualStudio/VC/Tools/MSVC/*/bin/Hostx64/x64/dumpbin.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+if (-not $dumpbin) { throw 'dumpbin.exe is required to check the native package dependencies.' }
+$imports = & $dumpbin /dependents build/windows-package/toolstock.exe
+if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the native executable.' }
+if ($imports -match '(?i)(VCRUNTIME\S*|MSVCP\S*|libssl\S*|libcrypto\S*|libpq\S*|sqlite3\S*|zlib\S*)\.dll') {
+    throw 'Native executable still depends on an external runtime DLL.'
+}
+Write-Host 'PASS: no external Visual C++, PostgreSQL, OpenSSL or SQLite runtime DLLs'
 Copy-Item packaging/windows/*.ps1, packaging/windows/*.bat, packaging/windows/toolstock.example.json build/windows-package/
 Copy-Item docs/WINDOWS.md build/windows-package/WINDOWS.md
 $licenses = 'build/windows-package/THIRD-PARTY-LICENSES'

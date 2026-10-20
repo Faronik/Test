@@ -169,7 +169,7 @@ static int application(const std::vector<std::string>&args){
  runtime::on_stop([&server](){server.stop();});
  if(runtime::stopping())return 0;
  runtime::ready();
- return server.listen_after_bind()?0:1;
+ auto listened=server.listen_after_bind();return runtime::stopping()||listened?0:1;
  }catch(const std::exception&e){std::cerr<<e.what()<<std::endl;return 1;}
 }
 

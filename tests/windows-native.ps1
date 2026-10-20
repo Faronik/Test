@@ -96,6 +96,14 @@ try {
     $service = Get-CimInstance Win32_Service -Filter "Name='Toolstock'"
     Check ($service.StartName -eq 'NT AUTHORITY\LocalService') 'Service uses LocalService'
     Check ($service.StartMode -eq 'Auto' -and $service.DelayedAutoStart) 'Delayed automatic startup configured'
+    Check ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\Toolstock').FailureActionsOnNonCrashFailures -eq 1) 'Startup failure recovery enabled'
+    Stop-Process -Id $service.ProcessId -Force
+    $recovered = $false
+    for ($i=0; $i -lt 45; $i++) {
+        Start-Sleep -Seconds 1
+        try { if ((Invoke-RestMethod "$env:TOOLSTOCK_TEST_URL/health" -TimeoutSec 2).status -eq 'ok') { $recovered=$true; break } } catch { }
+    }
+    Check $recovered 'Service automatically recovers after a process crash'
     Run 'powershell.exe' @('-NoProfile','-ExecutionPolicy','Bypass','-File',"$installDir/service.ps1",'-Action','Stop')
     Check ((Get-Service Toolstock).Status -eq 'Stopped') 'SCM stop completes cleanly'
     Run 'powershell.exe' @('-NoProfile','-ExecutionPolicy','Bypass','-File',"$installDir/service.ps1",'-Action','Start')

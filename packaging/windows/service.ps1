@@ -43,6 +43,7 @@ if ($Action -eq 'Install') {
     Invoke-ServiceControl @('config','Toolstock','start=','delayed-auto')
     Invoke-ServiceControl @('description','Toolstock','Warehouse web server with PostgreSQL. Open the web interface in your browser.')
     Invoke-ServiceControl @('failure','Toolstock','reset=','86400','actions=','restart/15000/restart/30000/restart/60000')
+    Invoke-ServiceControl @('failureflag','Toolstock','1')
     if ($Lan) {
         Remove-NetFirewallRule -Name 'Toolstock-HTTP' -ErrorAction SilentlyContinue
         New-NetFirewallRule -Name 'Toolstock-HTTP' -DisplayName 'Toolstock web interface (local network)' -Direction Inbound -Action Allow -Protocol TCP -LocalPort ([int]$config.TOOLSTOCK_PORT) -Program $exe -Profile Private -RemoteAddress LocalSubnet | Out-Null
