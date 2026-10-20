@@ -172,3 +172,56 @@ document.querySelectorAll('form[method="post"]').forEach(form => {
     }
   });
 });
+
+// Directory sections share the page but keep only the selected workspace visible.
+const adminTabs = [...document.querySelectorAll('[data-admin-tab]')];
+function showAdminSection(section) {
+  if (!adminTabs.some(tab => tab.dataset.adminTab === section)) return;
+  document.querySelectorAll('[data-admin-section]').forEach(panel => {
+    panel.hidden = panel.dataset.adminSection !== section;
+  });
+  adminTabs.forEach(tab => {
+    const active = tab.dataset.adminTab === section;
+    tab.classList.toggle('primary', active);
+    tab.classList.toggle('secondary', !active);
+    if (active) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  });
+}
+adminTabs.forEach(tab => tab.addEventListener('click', event => {
+  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  showAdminSection(tab.dataset.adminTab);
+  history.pushState({}, '', tab.href);
+}));
+window.addEventListener('popstate', () => showAdminSection(new URL(location.href).searchParams.get('section') || 'machines'));
+
+function searchableList(input, container, selector, getText, message) {
+  const rows = [...container.querySelectorAll(selector)];
+  if (!rows.length) { input.closest('label').hidden = true; return; }
+  const empty = document.createElement('p');
+  empty.className = 'form-help'; empty.hidden = true; empty.textContent = message;
+  container.append(empty);
+  const indexed = rows.map(row => ({row, text: getText(row).toLocaleLowerCase('ru')}));
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') event.preventDefault();
+  });
+  input.addEventListener('input', () => {
+    const words = input.value.trim().toLocaleLowerCase('ru').split(/\s+/).filter(Boolean);
+    let visible = 0;
+    indexed.forEach(({row, text}) => {
+      row.hidden = !words.every(word => text.includes(word));
+      if (!row.hidden) visible++;
+    });
+    empty.hidden = visible > 0;
+  });
+}
+document.querySelectorAll('[data-directory-search]').forEach(input => {
+  searchableList(input, input.closest('label').nextElementSibling, '.directory-row',
+    row => [...row.querySelectorAll('.directory-content > b, .directory-content > small')].map(el => el.textContent).join(' '),
+    'По вашему запросу записи не найдены');
+});
+document.querySelectorAll('[data-machine-search]').forEach(input => {
+  searchableList(input, input.closest('.machine-options').querySelector('.machine-check-grid'), '.machine-check',
+    row => row.textContent, 'Станки не найдены');
+});

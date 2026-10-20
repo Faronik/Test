@@ -265,6 +265,82 @@ class AppTest(unittest.TestCase):
         self.assertIn('500',self.request('/purchasing?export=1&id='+str(rid))[1])
         self.assertEqual(200,self.request('/reports?export=balances')[0]);self.assertEqual(200,self.request('/reports?export=history')[0])
 
+    def purchase(self):
+        p=self.product()
+        self.assertEqual(303,self.post('/purchasing/create',**{f'qty_{p}':5})[0])
+        return self.scalar('SELECT MAX(id) FROM purchase_requests'),p
+
+    def test_purchase_close_archive_restore(self):
+        rid,p=self.purchase()
+        self.assertIn(f'data-request-id="{rid}"',self.request('/purchasing')[1])
+        response=self.post('/purchasing/close',id=rid)
+        self.assertEqual(303,response[0]);self.assertIn('msg=',response[2]['Location'].split('#')[0])
+        self.assertEqual('Закрыта',self.scalar('SELECT status FROM purchase_requests WHERE id=?',(rid,)))
+        self.assertIsNotNone(self.scalar('SELECT closed_at FROM purchase_requests WHERE id=?',(rid,)))
+        self.assertEqual(1,self.scalar('SELECT closed_by FROM purchase_requests WHERE id=?',(rid,)))
+        self.assertEqual(0,self.balance(p))
+        self.assertNotIn(f'data-request-id="{rid}"',self.request('/purchasing')[1])
+        self.assertIn(f'data-request-id="{rid}"',self.request('/purchasing?view=closed')[1])
+        self.assertEqual(303,self.post('/purchasing/archive',id=rid)[0])
+        self.assertNotIn(f'data-request-id="{rid}"',self.request('/purchasing?view=closed')[1])
+        self.assertIn(f'data-request-id="{rid}"',self.request('/purchasing?view=archived')[1])
+        self.assertIn('ZAK-',self.request('/purchasing?export=1&id='+str(rid))[1])
+        self.assertEqual(1,self.scalar('SELECT COUNT(*) FROM purchase_request_lines WHERE request_id=?',(rid,)))
+        self.assertEqual(303,self.post('/purchasing/restore',id=rid)[0])
+        self.assertIn(f'data-request-id="{rid}"',self.request('/purchasing?view=closed')[1])
+
+    def test_purchase_archive_open_and_invalid_transitions(self):
+        rid,p=self.purchase()
+        self.assertEqual(303,self.post('/purchasing/archive',id=rid)[0])
+        self.assertEqual(400,self.post('/purchasing/close',id=rid)[0])
+        self.assertEqual(400,self.post('/purchasing/archive',id=rid)[0])
+        self.assertEqual(303,self.post('/purchasing/restore',id=rid)[0])
+        self.assertEqual(400,self.post('/purchasing/restore',id=rid)[0])
+        self.assertEqual(303,self.post('/purchasing/close',id=rid)[0])
+        self.assertEqual(400,self.post('/purchasing/close',id=rid)[0])
+        self.assertEqual(400,self.post('/purchasing/close',id=999)[0])
+        self.assertEqual(0,self.scalar('SELECT COUNT(*) FROM movements'))
+
+    def test_purchase_lifecycle_permissions_csrf_and_replay(self):
+        rid,p=self.purchase();token=uuid.uuid4().hex
+        self.assertEqual(303,self.post('/purchasing/close',id=rid,request_id=token)[0])
+        stamp=self.scalar('SELECT closed_at FROM purchase_requests WHERE id=?',(rid,))
+        self.assertEqual(303,self.post('/purchasing/close',id=rid,request_id=token)[0])
+        self.assertEqual(stamp,self.scalar('SELECT closed_at FROM purchase_requests WHERE id=?',(rid,)))
+        self.post('/admin/role',name='Просмотр заявок',permissions=['purchasing.view'])
+        role=self.scalar("SELECT code FROM role_definitions WHERE name='Просмотр заявок'")
+        self.post('/admin/user',username='purchaseviewer',password='test-password-123',role=role)
+        jar=http.cookiejar.CookieJar();client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),NoRedirect())
+        self.request('/login',dict(username='purchaseviewer',password='test-password-123'),client)
+        token=self.scalar("SELECT s.csrf FROM sessions s JOIN users u ON u.id=s.user_id WHERE username='purchaseviewer'")
+        self.assertEqual(200,self.request('/purchasing?view=closed',client=client)[0])
+        for action in ('close','archive','restore'):
+            self.assertEqual(403,self.request('/purchasing/'+action,dict(id=rid,csrf=token,request_id=uuid.uuid4().hex),client)[0])
+            self.assertEqual(403,self.request('/purchasing/'+action,dict(id=rid,request_id=uuid.uuid4().hex))[0])
+        self.assertIsNone(self.scalar('SELECT archived_at FROM purchase_requests WHERE id=?',(rid,)))
+
+    def test_purchase_lifecycle_additive_migration(self):
+        rid,p=self.purchase()
+        # Simulate the existing request table shipped before lifecycle fields.
+        with app.db() as con:
+            con.execute('PRAGMA foreign_keys=OFF')
+            con.execute("CREATE TABLE purchase_requests_old (id INTEGER PRIMARY KEY,request_no TEXT UNIQUE,created_at TEXT NOT NULL,created_by INTEGER NOT NULL REFERENCES users(id),status TEXT NOT NULL DEFAULT 'Создана')")
+            con.execute('INSERT INTO purchase_requests_old SELECT id,request_no,created_at,created_by,status FROM purchase_requests')
+            con.execute('DROP TABLE purchase_requests')
+            con.execute('ALTER TABLE purchase_requests_old RENAME TO purchase_requests')
+        app.init_db();app.init_db()
+        self.assertEqual('Создана',self.scalar('SELECT status FROM purchase_requests WHERE id=?',(rid,)))
+        self.assertEqual(1,self.scalar('SELECT COUNT(*) FROM purchase_request_lines WHERE request_id=?',(rid,)))
+        self.assertEqual(303,self.post('/purchasing/close',id=rid)[0])
+        self.assertEqual(200,self.request('/purchasing?export=1&id='+str(rid))[0])
+
+    def test_purchase_history_pagination(self):
+        rid,p=self.purchase()
+        for _ in range(21):self.post('/purchasing/create',**{f'qty_{p}':1})
+        first=self.request('/purchasing')[1];second=self.request('/purchasing?page=2')[1]
+        self.assertEqual(20,first.count('data-request-id='));self.assertEqual(2,second.count('data-request-id='))
+        self.assertIn('Страница 2 из 2',second)
+
     def test_operation_navigation_and_prefill(self):
         p=self.product();page=self.request('/transactions?op=issue&product_id='+str(p))[1]
         self.assertIn('data-op="issue" aria-current="page"',page)

@@ -213,6 +213,9 @@ def init_db() -> None:
         if "inventory_no" not in cols: con.execute("ALTER TABLE products ADD COLUMN inventory_no TEXT")
         if "params_json" not in cols: con.execute("ALTER TABLE products ADD COLUMN params_json TEXT NOT NULL DEFAULT '{}'")
         if "price_per_unit" not in cols: con.execute("ALTER TABLE products ADD COLUMN price_per_unit REAL NOT NULL DEFAULT 0")
+        purchase_cols={r[1] for r in con.execute("PRAGMA table_info(purchase_requests)")}
+        for column,definition in (("closed_at","TEXT"),("closed_by","INTEGER REFERENCES users(id)"),("archived_at","TEXT"),("archived_by","INTEGER REFERENCES users(id)")):
+            if column not in purchase_cols: con.execute(f"ALTER TABLE purchase_requests ADD COLUMN {column} {definition}")
         for code,label in ROLES.items():
             con.execute("INSERT OR IGNORE INTO role_definitions(code,name,permissions_json,is_system) VALUES(?,?,?,1)",(code,label,json.dumps(DEFAULT_ROLE_PERMISSIONS[code],ensure_ascii=False)))
         role_sql=con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
@@ -380,7 +383,7 @@ def layout(title, body, user=None, notice="", *, active=""):
         shell = f'<div class="app-shell">{nav}<main class="main">{header}{f"<div class=notice>{h(notice)}</div>" if notice else ""}{body}</main></div>'
     else:
         shell = f'<main class="auth-wrap">{f"<div class=notice>{h(notice)}</div>" if notice else ""}{body}</main>'
-    return f'<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7fb"><title>{h(title)} · КАТЕКС</title><link rel="stylesheet" href="/static/style.css?v=20261020-1"></head><body>{shell}<script src="/static/app.js?v=20261020-1" defer></script></body></html>'
+    return f'<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7fb"><title>{h(title)} · КАТЕКС</title><link rel="stylesheet" href="/static/style.css?v=20261020-2"></head><body>{shell}<script src="/static/app.js?v=20261020-2" defer></script></body></html>'
 
 
 def field(label, name, value="", typ="text", attrs="", required=False):
@@ -395,10 +398,10 @@ def machine_checkboxes(machines, selected=(), *, prefix="machine"):
     selected={str(x) for x in selected}
     if not machines:
         return '<p class="form-help">Сначала добавьте станок в справочник.</p>'
-    return '<div class="machine-check-grid">'+"".join(
+    return '<div class="machine-options"><label class="field machine-options-filter"><span>Найти станок</span><input type="search" placeholder="Название станка" autocomplete="off" data-machine-search></label><div class="machine-check-grid" tabindex="0" aria-label="Выбор станков">'+"".join(
         f'<label class="machine-check"><input type="checkbox" name="machine_ids" value="{m["id"]}" id="{h(prefix)}-{m["id"]}"{" checked" if str(m["id"]) in selected else ""}><span>{h(m["name"])}</span></label>'
         for m in machines
-    )+'</div>'
+    )+'<p class="machine-no-results form-help" hidden>Станки не найдены</p></div></div>'
 
 
 def csrf(user):
@@ -745,7 +748,9 @@ class App(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(data)
 
     def redirect(self, path, notice="", headers=None):
-        if notice: path += ("&" if "?" in path else "?")+"msg="+quote(notice)
+        if notice:
+            base,sep,fragment=path.partition("#")
+            path=base+("&" if "?" in base else "?")+"msg="+quote(notice)+(sep+fragment if sep else "")
         self.send("", 303, headers={"Location": path, **(headers or {})})
 
     def body_parts(self):
@@ -904,6 +909,9 @@ class App(BaseHTTPRequestHandler):
         if path=="/movement/edit": return self.edit_movement(con,user,data)
         if path=="/movement/cancel": return self.cancel_movement(con,user,data)
         if path=="/purchasing/create": return self.create_purchase_request(con,user,data)
+        if path=="/purchasing/close": return self.change_purchase_request(con,user,data,"close")
+        if path=="/purchasing/archive": return self.change_purchase_request(con,user,data,"archive")
+        if path=="/purchasing/restore": return self.change_purchase_request(con,user,data,"restore")
         if path=="/admin/machine": return self.add_machine(con,user,data)
         if path=="/admin/machine/edit": return self.edit_machine(con,user,data)
         if path=="/admin/worker": return self.add_worker(con,user,data)
@@ -1043,7 +1051,7 @@ class App(BaseHTTPRequestHandler):
         if is_edit and has_permission(user,"transactions.manage"):
             quick_actions='<div class="quick-actions">'+"".join(f'<a class="button {"primary" if op=="issue" else "secondary"}" href="/transactions?op={op}&amp;product_id={p["id"]}">{label}</a>' for op,label in [("issue","Выдать"),("receipt","Оформить поступление"),("writeoff","Списать")])+"</div>"
         body=f'''<div class="backline"><a class="text-link catalog-back" href="/catalog">← Каталог</a></div>{quick_actions}<div class="two-col detail-grid"><section class="panel"><div class="section-head"><div><span class="eyebrow">КАРТОЧКА ИНСТРУМЕНТА</span><h2>{h(title)}</h2></div>{f'<span class="tag">{h(p["code"])}</span>' if is_edit else '<span class="hint">Код присвоится автоматически</span>'}</div>
-        {'<div class="product-photo"><img src="/photo/'+quote(p['photo'])+'" alt=""></div>' if is_edit and p["photo"] else ''}
+        {f'<figure class="product-media"><a class="product-photo" href="/photo/{quote(p["photo"])}" target="_blank" rel="noopener" title="Открыть фото в полном размере"><img src="/photo/{quote(p["photo"])}" alt="Фото: {h(product_primary_name(p))}"></a><figcaption>Нажмите на фото, чтобы открыть оригинал</figcaption></figure>' if is_edit and p["photo"] else ''}
         {'<form method="post" action="/product/save" enctype="multipart/form-data">'+csrf(user)+f'<input type="hidden" name="id" value="{h(p["id"])}">' if can_edit else '<fieldset disabled class="readonly-fields">'}
         {select_field("Тип позиции","item_class",type_opts,p["item_class"],True)}
         <div class="field"><span>Категория</span><select name="category" id="category" required>{category_options(p["item_class"],p["category"])}</select></div>
@@ -1403,18 +1411,66 @@ class App(BaseHTTPRequestHandler):
         return self.send("\ufeff"+output.getvalue(),content_type="text/csv; charset=utf-8",headers={"Content-Disposition":"attachment; filename=regrind_queue.csv"})
 
     def purchasing(self,con,user,notice=""):
-        self.require(user,"purchasing.view"); low=[]
+        self.require(user,"purchasing.view")
         can_order=has_permission(user,"purchasing.manage")
+        query=parse_qs(urlparse(self.path).query)
+        view=query.get("view",["open"])[0]
+        if view not in ("open","closed","archived"): view="open"
+        try: page=max(1,int(query.get("page",["1"])[0]))
+        except ValueError: page=1
+        conditions={"open":"r.archived_at IS NULL AND r.status!='Закрыта'","closed":"r.archived_at IS NULL AND r.status='Закрыта'","archived":"r.archived_at IS NOT NULL"}
+        count=con.execute("SELECT COUNT(*) FROM purchase_requests r WHERE "+conditions[view]).fetchone()[0]
+        pages=max(1,math.ceil(count/20));page=min(page,pages)
+        requests=con.execute("SELECT r.*,u.username,(SELECT COUNT(*) FROM purchase_request_lines l WHERE l.request_id=r.id) item_count,(SELECT COALESCE(SUM(l.qty*l.unit_price),0) FROM purchase_request_lines l WHERE l.request_id=r.id) total FROM purchase_requests r JOIN users u ON u.id=r.created_by WHERE "+conditions[view]+" ORDER BY r.id DESC LIMIT 20 OFFSET ?",((page-1)*20,)).fetchall()
+        low=[]
         for p in con.execute("SELECT * FROM products WHERE active=1 ORDER BY category,name"):
             qty=usable_total(con,p["id"])
             if qty<float(p["min_qty"]) or qty==0: low.append((p,qty,max(1,math.ceil(float(p["min_qty"])-qty))))
         rows=[]
         for p,qty,suggested in low:
             rows.append(f'<tr><td><b>{h(p["name"])}</b><small>{h(p["code"])} · {h(p["category"])}</small></td><td>{h(fmt_num(qty))} {h(p["unit"])}</td><td>{h(fmt_num(p["min_qty"]))} {h(p["unit"])}</td><td>{h(fmt_num(p["price_per_unit"]))}</td><td><input class="qty-input" type="number" name="qty_{p["id"]}" min="0" step="1" value="{suggested}" {"" if can_order else "disabled"}></td></tr>')
-        requests=con.execute("SELECT r.*,u.username,(SELECT COUNT(*) FROM purchase_request_lines l WHERE l.request_id=r.id) item_count,(SELECT COALESCE(SUM(l.qty*l.unit_price),0) FROM purchase_request_lines l WHERE l.request_id=r.id) total FROM purchase_requests r JOIN users u ON u.id=r.created_by ORDER BY r.id DESC LIMIT 30").fetchall()
-        history=''.join(f'<tr><td>{h(r["request_no"] or r["id"])}</td><td>{h(r["created_at"].replace("T"," ")[:16])}</td><td>{h(r["username"])}</td><td>{r["item_count"]}</td><td>{h(fmt_num(r["total"]))} руб.</td><td><a class="text-link" href="/purchasing?export=1&id={r["id"]}">Выгрузить CSV</a></td></tr>' for r in requests)
-        body=f'''<section class="panel"><div class="section-head"><div><h2>Позиции для пополнения</h2><p>Показываются позиции с доступным складским остатком ниже минимума или равным нулю. Количество по умолчанию рассчитано до минимального уровня.</p></div><a class="button secondary" href="/catalog">Каталог</a></div><form method="post" action="/purchasing/create">{csrf(user)}<div class="table-wrap"><table><thead><tr><th>Позиция</th><th>Доступно</th><th>Минимум</th><th>Цена, руб./шт.</th><th>Заказать</th></tr></thead><tbody>{''.join(rows) or '<tr><td colspan=5 class=empty>Нет позиций ниже минимума</td></tr>'}</tbody></table></div><p class="form-help">Можно изменить рекомендуемое количество или указать 0, чтобы исключить позицию из заявки.</p><button class="button primary" {'disabled' if not low or not can_order else ''}>Сформировать заявку на закупку</button></form></section><section class="panel"><div class="section-head"><div><h2>Сформированные заявки</h2><p>Заявка сохраняет снимок остатка и стоимости на дату формирования.</p></div></div><div class="table-wrap"><table><thead><tr><th>Номер</th><th>Дата</th><th>Создал</th><th>Позиций</th><th>Сумма</th><th></th></tr></thead><tbody>{history or '<tr><td colspan=6 class=empty>Заявок пока нет</td></tr>'}</tbody></table></div></section>'''
+        history=[]
+        for r in requests:
+            actions=f'<a class="text-link" href="/purchasing?export=1&amp;id={r["id"]}">Выгрузить CSV</a>'
+            if can_order:
+                if r["archived_at"]:
+                    actions+=f'<form method="post" action="/purchasing/restore">{csrf(user)}<input type="hidden" name="id" value="{r["id"]}"><button class="button secondary">Вернуть в список</button></form>'
+                else:
+                    if r["status"]!="Закрыта":
+                        actions+=f'<form method="post" action="/purchasing/close" onsubmit="return confirm(\'Закрыть выполненный заказ? Это не оформляет поступление на склад.\')">{csrf(user)}<input type="hidden" name="id" value="{r["id"]}"><button class="button primary">Закрыть заказ</button></form>'
+                    actions+=f'<form method="post" action="/purchasing/archive" onsubmit="return confirm(\'Удалить заявку из списка? Она останется в архиве.\')">{csrf(user)}<input type="hidden" name="id" value="{r["id"]}"><button class="text-link danger-link">Удалить из списка</button></form>'
+            closed=f'<small>Закрыта: {h(r["closed_at"].replace("T"," ")[:16])}</small>' if r["closed_at"] else ""
+            status="В архиве" if r["archived_at"] else r["status"]
+            history.append(f'<tr data-request-id="{r["id"]}"><td><b>{h(r["request_no"] or r["id"])}</b></td><td>{h(r["created_at"].replace("T"," ")[:16])}</td><td>{h(r["username"])}</td><td>{r["item_count"]}</td><td>{h(fmt_num(r["total"]))} руб.</td><td><span class="tag">{h(status)}</span>{closed}</td><td><div class="purchase-actions">{actions}</div></td></tr>')
+        tabs='<nav class="purchase-tabs" aria-label="Статусы заявок">'+''.join(f'<a class="button {"primary" if view==key else "secondary"}" href="/purchasing?view={key}#purchase-history" {"aria-current=page" if view==key else ""}>{label}</a>' for key,label in (("open","Открытые"),("closed","Завершённые"),("archived","Архив")))+'</nav>'
+        pager=f'<div class="list-pagination"><span>Страница {page} из {pages} · Заявок: {count}</span>'
+        if page>1: pager+=f'<a class="button secondary" href="/purchasing?view={view}&amp;page={page-1}#purchase-history">Назад</a>'
+        if page<pages: pager+=f'<a class="button secondary" href="/purchasing?view={view}&amp;page={page+1}#purchase-history">Далее</a>'
+        pager+='</div>'
+        body=f'''<section class="panel"><div class="section-head"><div><h2>Позиции для пополнения</h2><p>Позиции с доступным остатком ниже минимума или равным нулю. Количество по умолчанию рассчитано до минимального уровня.</p></div><a class="button secondary" href="/catalog">Каталог</a></div><form method="post" action="/purchasing/create">{csrf(user)}<div class="table-wrap"><table><thead><tr><th>Позиция</th><th>Доступно</th><th>Минимум</th><th>Цена, руб./шт.</th><th>Заказать</th></tr></thead><tbody>{''.join(rows) or '<tr><td colspan=5 class=empty>Нет позиций ниже минимума</td></tr>'}</tbody></table></div><p class="form-help">Измените количество или укажите 0, чтобы исключить позицию.</p><button class="button primary" {'disabled' if not low or not can_order else ''}>Сформировать заявку на закупку</button></form></section><section class="panel" id="purchase-history"><div class="section-head"><div><h2>Сформированные заявки</h2><p>Закройте выполненный заказ или удалите его из списка в архив. Закрытие заказа не изменяет складские остатки — поступление оформляется отдельно.</p></div></div>{tabs}<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Дата</th><th>Создал</th><th>Позиций</th><th>Сумма</th><th>Статус</th><th>Действия</th></tr></thead><tbody>{''.join(history) or '<tr><td colspan=7 class=empty>Заявок в этом списке нет</td></tr>'}</tbody></table></div>{pager}</section>'''
         return self.send(layout("Заявки",body,user,notice,active="purchasing"))
+
+    def change_purchase_request(self,con,user,data,action):
+        self.require(user,"purchasing.manage");begin_write(con)
+        try: request_id=int(data.get("id", "0"))
+        except ValueError: raise ValueError("Укажите корректную заявку.")
+        row=con.execute("SELECT * FROM purchase_requests WHERE id=?",(request_id,)).fetchone()
+        if not row: raise ValueError("Заявка не найдена.")
+        if action=="close":
+            if row["archived_at"]: raise ValueError("Сначала верните заявку из архива.")
+            if row["status"]=="Закрыта": raise ValueError("Заказ уже закрыт.")
+            con.execute("UPDATE purchase_requests SET status='Закрыта',closed_at=?,closed_by=? WHERE id=?",(now_iso(),user["id"],request_id))
+            return self.redirect("/purchasing?view=closed#purchase-history","Заказ закрыт")
+        if action=="archive":
+            if row["archived_at"]: raise ValueError("Заявка уже в архиве.")
+            con.execute("UPDATE purchase_requests SET archived_at=?,archived_by=? WHERE id=?",(now_iso(),user["id"],request_id))
+            return self.redirect("/purchasing#purchase-history","Заявка удалена из списка и сохранена в архиве")
+        if action=="restore":
+            if not row["archived_at"]: raise ValueError("Заявка не находится в архиве.")
+            con.execute("UPDATE purchase_requests SET archived_at=NULL,archived_by=NULL WHERE id=?",(request_id,))
+            view="closed" if row["status"]=="Закрыта" else "open"
+            return self.redirect(f"/purchasing?view={view}#purchase-history","Заявка возвращена в список")
+        raise ValueError("Неизвестное действие с заявкой.")
 
     def create_purchase_request(self,con,user,data):
         self.require(user,"purchasing.manage"); selected=[]
@@ -1612,7 +1668,7 @@ class App(BaseHTTPRequestHandler):
         if "catalog.edit" in permissions: permissions.add("catalog.view")
         if "purchasing.manage" in permissions: permissions.add("purchasing.view")
         con.execute("UPDATE role_definitions SET permissions_json=? WHERE code=?",(json.dumps(sorted(permissions),ensure_ascii=False),code))
-        return self.redirect("/admin","Права роли сохранены")
+        return self.redirect("/admin?section=roles","Права роли сохранены")
 
     def delete_role(self,con,user,data):
         self.require(user,("ADMIN",)); code=data.get("code","")
@@ -1622,7 +1678,7 @@ class App(BaseHTTPRequestHandler):
         count=con.execute("SELECT COUNT(*) FROM users WHERE role=? AND active=1",(code,)).fetchone()[0]
         if count: raise ValueError(f"Роль назначена {count} активным учетным записям. Сначала переназначьте их.")
         con.execute("DELETE FROM role_definitions WHERE code=?",(code,))
-        return self.redirect("/admin","Роль удалена")
+        return self.redirect("/admin?section=roles","Роль удалена")
 
     def delete_user(self,con,user,data):
         self.require(user,("ADMIN",)); uid=int(data.get("id") or 0)
@@ -1631,13 +1687,13 @@ class App(BaseHTTPRequestHandler):
         if target["role"]=="ADMIN" and con.execute("SELECT COUNT(*) FROM users WHERE active=1 AND role='ADMIN'").fetchone()[0]<=1:
             raise ValueError("Нельзя отключить последнюю активную учетную запись администратора.")
         con.execute("UPDATE users SET active=0 WHERE id=?",(uid,)); con.execute("DELETE FROM sessions WHERE user_id=?",(uid,))
-        return self.redirect("/admin","Учетная запись удалена и отключена")
+        return self.redirect("/admin?section=users","Учетная запись удалена и отключена")
 
     def delete_machine(self,con,user,data):
         self.require(user,("ADMIN",)); mid=int(data.get("id") or 0)
         if not con.execute("SELECT 1 FROM machines WHERE id=? AND active=1",(mid,)).fetchone(): raise ValueError("Активный станок не найден.")
         con.execute("UPDATE machines SET active=0 WHERE id=?",(mid,))
-        return self.redirect("/admin","Станок удален из справочника; записи истории сохранены")
+        return self.redirect("/admin?section=machines","Станок удален из справочника; записи истории сохранены")
 
     def delete_worker(self,con,user,data):
         self.require(user,("ADMIN",)); wid=int(data.get("id") or 0)
@@ -1647,7 +1703,7 @@ class App(BaseHTTPRequestHandler):
             raise ValueError("Нельзя удалить: числится инструмент")
         ids=[r[0] for r in con.execute("SELECT id FROM users WHERE worker_id=? AND active=1",(wid,))]
         con.execute("UPDATE workers SET active=0 WHERE id=?",(wid,)); con.execute("UPDATE users SET active=0 WHERE worker_id=?",(wid,)); con.executemany("DELETE FROM sessions WHERE user_id=?",[(x,) for x in ids])
-        return self.redirect("/admin","Рабочий и связанные учетные записи отключены; история сохранена")
+        return self.redirect("/admin?section=workers","Рабочий и связанные учетные записи отключены; история сохранена")
 
     def restore_user(self,con,user,data):
         self.require(user,("ADMIN",)); uid=int(data.get("id") or 0)
@@ -1658,19 +1714,19 @@ class App(BaseHTTPRequestHandler):
         if target["worker_id"] and not con.execute("SELECT 1 FROM workers WHERE id=? AND active=1",(target["worker_id"],)).fetchone():
             raise ValueError("Сначала восстановите связанного рабочего.")
         con.execute("UPDATE users SET active=1 WHERE id=?",(uid,))
-        return self.redirect("/admin","Учетная запись восстановлена")
+        return self.redirect("/admin?section=users","Учетная запись восстановлена")
 
     def restore_machine(self,con,user,data):
         self.require(user,("ADMIN",)); mid=int(data.get("id") or 0)
         if not con.execute("SELECT 1 FROM machines WHERE id=? AND active=0",(mid,)).fetchone(): raise ValueError("Отключенный станок не найден.")
         con.execute("UPDATE machines SET active=1 WHERE id=?",(mid,))
-        return self.redirect("/admin","Станок восстановлен")
+        return self.redirect("/admin?section=machines","Станок восстановлен")
 
     def restore_worker(self,con,user,data):
         self.require(user,("ADMIN",)); wid=int(data.get("id") or 0)
         if not con.execute("SELECT 1 FROM workers WHERE id=? AND active=0",(wid,)).fetchone(): raise ValueError("Отключенный рабочий не найден.")
         con.execute("UPDATE workers SET active=1 WHERE id=?",(wid,))
-        return self.redirect("/admin","Рабочий восстановлен. Связанную учетную запись восстановите отдельно.")
+        return self.redirect("/admin?section=workers","Рабочий восстановлен. Связанную учетную запись восстановите отдельно.")
 
     def admin(self,con,user,notice=""):
         self.require(user,("ADMIN",))
@@ -1722,19 +1778,31 @@ class App(BaseHTTPRequestHandler):
         <section class="panel"><div class="section-head"><div><span class="eyebrow">СПРАВОЧНИК</span><h2>Добавить рабочего</h2></div></div><form method="post" action="/admin/worker">{csrf(user)}{field('ФИО / имя','name',required=True)}{field('Табельный номер','personnel_no')}<label class="field"><span>Закрепить за станками</span></label>{machine_checkboxes(machines,prefix='new-worker')}<p class="form-help">Отметьте один или несколько станков галочками.</p><button class="button primary">Добавить рабочего</button></form><h3>Рабочие</h3><div class="simple-list directory-list">{worker_rows or '<p class=empty>Рабочих пока нет</p>'}</div>{'<h3>Отключенные рабочие</h3><div class="simple-list directory-list">'+archived_worker_rows+'</div>' if archived_workers else ''}</section></div>
         <section class="panel"><div class="section-head"><div><span class="eyebrow">РОЛИ И ПРАВА</span><h2>Матрица доступа</h2><p>Измените разрешения и сохраните строку роли. Управление ролями доступно только администратору.</p></div></div><div class="table-wrap role-matrix"><table><thead><tr><th>Роль</th>{''.join(f'<th title="{h(PERMISSIONS[k])}">{h(headers[k])}</th>' for k in PERMISSIONS)}<th>Действия</th></tr></thead><tbody>{''.join(roles_table)}</tbody></table></div><h3>Создать роль</h3><form method="post" action="/admin/role">{csrf(user)}{field('Название роли','name',required=True)}<div class="permission-grid">{permission_boxes}</div><button class="button primary">Создать роль</button></form></section>
         <section class="panel"><div class="section-head"><div><span class="eyebrow">УЧЕТНЫЕ ЗАПИСИ</span><h2>Создать пользователя</h2><p>Для роли «Рабочий» свяжите пользователя с карточкой рабочего.</p></div></div><form method="post" action="/admin/user" class="filter-row">{csrf(user)}{field('Логин','username',required=True)}{field('Пароль (10+ символов)','password',typ='password',attrs='minlength=10',required=True)}{select_field('Роль','role',role_options)}{select_field('Рабочий','worker_id',worker_select(con))}<button class="button primary">Создать</button></form><div class="table-wrap"><table><thead><tr><th>Логин</th><th>Роль</th><th>Рабочий</th><th>Создан</th><th>Статус</th><th></th></tr></thead><tbody>{''.join(account_rows)}</tbody></table></div></section>'''
-        return self.send(layout("Справочники и доступ",body,user,notice,active="admin"))
+        sections=[("machines","Станки"),("workers","Рабочие"),("roles","Роли и права"),("users","Учётные записи")]
+        query=parse_qs(urlparse(self.path).query)
+        selected=query.get("section",["machines"])[0]
+        if selected not in dict(sections): selected="machines"
+        index=iter(sections)
+        def directory_section(match):
+            key,label=next(index)
+            return f'<section class="panel admin-section" data-admin-section="{key}" id="admin-{key}" aria-labelledby="admin-tab-{key}"{" hidden" if key!=selected else ""}>'
+        body=re.sub(r'<section class="panel">',directory_section,body)
+        body=body.replace('<div class="two-col">','<div class="admin-directory-grid">',1)
+        body=re.sub(r'<div class="simple-list directory-list">', '<label class="field directory-filter"><span>Поиск по списку</span><input type="search" data-directory-search placeholder="Имя, название, табельный номер или станок" autocomplete="off"></label><div class="simple-list directory-list" tabindex="0" aria-label="Записи справочника">',body)
+        tabs='<nav class="admin-tabs" aria-label="Разделы справочников">'+''.join(f'<a class="button {"primary" if key==selected else "secondary"}" id="admin-tab-{key}" data-admin-tab="{key}" href="/admin?section={key}" {"aria-current=page" if key==selected else ""}>{label}</a>' for key,label in sections)+'</nav>'
+        return self.send(layout("Справочники и доступ",tabs+body,user,notice,active="admin"))
 
     def add_machine(self,con,user,data):
         self.require(user,("ADMIN",)); name=data.get("name","").strip()
         if len(name)<2: raise ValueError("Укажите название станка.")
-        con.execute("INSERT INTO machines(name,location) VALUES(?,?)",(name,data.get("location","").strip())); return self.redirect("/admin","Станок добавлен")
+        con.execute("INSERT INTO machines(name,location) VALUES(?,?)",(name,data.get("location","").strip())); return self.redirect("/admin?section=machines","Станок добавлен")
 
     def edit_machine(self,con,user,data):
         self.require(user,("ADMIN",)); mid=int(data.get("id") or 0); name=data.get("name","").strip()
         if not con.execute("SELECT 1 FROM machines WHERE id=? AND active=1",(mid,)).fetchone(): raise ValueError("Активный станок не найден.")
         if len(name)<2: raise ValueError("Укажите название станка.")
         con.execute("UPDATE machines SET name=?,location=? WHERE id=?",(name,data.get("location","").strip(),mid))
-        return self.redirect("/admin","Данные станка обновлены")
+        return self.redirect("/admin?section=machines","Данные станка обновлены")
 
     def add_worker(self,con,user,data):
         self.require(user,("ADMIN",)); name=data.get("name","").strip(); pn=data.get("personnel_no","").strip(); mids=data.get("machine_ids",[])
@@ -1747,7 +1815,7 @@ class App(BaseHTTPRequestHandler):
         if len(name)<2: raise ValueError("Укажите имя рабочего.")
         cur=con.execute("INSERT INTO workers(name,personnel_no,machine_id) VALUES(?,?,?)",(name,pn,mid))
         con.executemany("INSERT OR IGNORE INTO worker_machines(worker_id,machine_id) VALUES(?,?)",[(cur.lastrowid,x) for x in mids])
-        return self.redirect("/admin","Рабочий добавлен")
+        return self.redirect("/admin?section=workers","Рабочий добавлен")
 
     def edit_worker(self,con,user,data):
         self.require(user,("ADMIN",)); wid=int(data.get("id") or 0); name=data.get("name","").strip()
@@ -1764,7 +1832,7 @@ class App(BaseHTTPRequestHandler):
         con.execute("UPDATE workers SET name=?,personnel_no=?,machine_id=? WHERE id=?",(name,pn,mids[0] if mids else None,wid))
         con.execute("DELETE FROM worker_machines WHERE worker_id=?",(wid,))
         con.executemany("INSERT INTO worker_machines(worker_id,machine_id) VALUES(?,?)",[(wid,mid) for mid in dict.fromkeys(mids+inactive_ids)])
-        return self.redirect("/admin","Данные рабочего обновлены")
+        return self.redirect("/admin?section=workers","Данные рабочего обновлены")
 
     def add_role(self,con,user,data):
         self.require(user,("ADMIN",)); name=data.get("name","").strip()
@@ -1780,7 +1848,7 @@ class App(BaseHTTPRequestHandler):
             raise ValueError("Роль с таким названием уже существует.")
         code="CUSTOM_"+uuid.uuid4().hex[:12].upper()
         con.execute("INSERT INTO role_definitions(code,name,permissions_json,is_system) VALUES(?,?,?,0)",(code,name,json.dumps(permissions,ensure_ascii=False)))
-        return self.redirect("/admin","Роль создана")
+        return self.redirect("/admin?section=roles","Роль создана")
 
     def add_user(self,con,user,data):
         self.require(user,("ADMIN",)); username=data.get("username","").strip(); password=data.get("password",""); role=data.get("role")
@@ -1789,7 +1857,7 @@ class App(BaseHTTPRequestHandler):
         if not con.execute("SELECT 1 FROM role_definitions WHERE code=?",(role,)).fetchone(): raise ValueError("Недопустимая роль.")
         if role=="WORKER" and not wid: raise ValueError("Свяжите учетную запись рабочего с карточкой рабочего.")
         if role!="WORKER": wid=None
-        con.execute("INSERT INTO users(username,password_hash,role,worker_id,created_at) VALUES(?,?,?,?,?)",(username,pw_hash(password),role,wid,now_iso())); return self.redirect("/admin","Пользователь создан")
+        con.execute("INSERT INTO users(username,password_hash,role,worker_id,created_at) VALUES(?,?,?,?,?)",(username,pw_hash(password),role,wid,now_iso())); return self.redirect("/admin?section=users","Пользователь создан")
 
     def page_error(self,user,status,message):
         return self.send(layout("Сообщение",f'<section class="panel error-panel"><h2>{h(message)}</h2><a class="button secondary" href="/dashboard">На главную</a></section>',user),status=status)
