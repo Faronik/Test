@@ -43,6 +43,7 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 var
   DatabasePage: TInputQueryWizardPage;
   ExistingConfiguration: Boolean;
+  StartupFailed: Boolean;
 
 function ConfigPath: String;
 begin
@@ -78,7 +79,7 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := (PageID = DatabasePage.ID) and ExistingConfiguration;
+  Result := ExistingConfiguration and ((PageID = DatabasePage.ID) or (PageID = wpSelectTasks));
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -137,7 +138,15 @@ begin
     '" -Action Install -ConfigPath "' + ConfigPath + '" -DataPath "' + DataDirectory + '"';
   if WizardIsTaskSelected('lan') then Params := Params + ' -Lan';
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params,
-    '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
-    SuppressibleMsgBox('Файлы установлены, но сервер не запустился. Проверьте подключение PostgreSQL и журнал C:\ProgramData\Toolstock\data\logs\server.log. Инструкция — WINDOWS.md.', mbError, MB_OK, IDOK)
+    '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then begin
+    StartupFailed := True;
+    SuppressibleMsgBox('Файлы установлены, но сервер не запустился. Проверьте подключение PostgreSQL и журнал C:\ProgramData\Toolstock\data\logs\server.log. Инструкция — WINDOWS.md.', mbError, MB_OK, IDOK);
+  end
   else SuppressibleMsgBox('Сервер работает. Откройте http://localhost:8000 и создайте администратора. Дальнейшая работа выполняется в браузере.', mbInformation, MB_OK, IDOK);
+end;
+
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := 0;
+  if StartupFailed then Result := 1;
 end;

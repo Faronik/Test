@@ -6,7 +6,7 @@ void import_sqlite(DB&db,const fs::path&source,const fs::path&photo_source,const
  struct Staging{fs::path path;~Staging(){std::error_code e;fs::remove_all(path,e);}} staging{fs::temp_directory_path()/("toolstock-import-"+random_hex(12))};
  fs::create_directories(staging.path);auto snapshot=staging.path/"source.sqlite3";
  need(fs::is_regular_file(source),"Исходный SQLite-файл не найден");fs::copy_file(source,snapshot);
- auto wal=fs::path(source.string()+"-wal");if(fs::exists(wal)&&fs::file_size(wal)>0)fs::copy_file(wal,snapshot.string()+"-wal");
+ auto wal=source;wal+="-wal";auto snapshot_wal=snapshot;snapshot_wal+="-wal";if(fs::exists(wal)&&fs::file_size(wal)>0)fs::copy_file(wal,snapshot_wal);
  // Only the temporary copy may create SQLite's WAL shared-memory files.
  sqlite3*raw=nullptr;auto snapshot_utf8=snapshot.u8string();need(sqlite3_open_v2(reinterpret_cast<const char*>(snapshot_utf8.c_str()),&raw,SQLITE_OPEN_READONLY,nullptr)==SQLITE_OK,"Не удалось открыть копию SQLite-базы");
  std::unique_ptr<sqlite3,decltype(&sqlite3_close)>sqlite(raw,sqlite3_close);

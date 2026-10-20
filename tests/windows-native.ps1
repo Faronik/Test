@@ -39,6 +39,14 @@ try {
     # Exercise a path with spaces AND Cyrillic, independent of the current directory.
     $package = Join-Path $temp 'Склад сервер'
     Copy-Item build/windows-package $package -Recurse
+    # Supply the synthetic password to the interactive setup without logging it.
+    function global:Read-Host { param([string]$Prompt, [switch]$AsSecureString) ConvertTo-SecureString $env:PGPASSWORD -AsPlainText -Force }
+    try {
+        $generatedConfig = Join-Path $temp 'protected-config.json'
+        & "$package/configure.ps1" -ConfigPath $generatedConfig -DataPath "$temp/configured-data" -DatabasePort 55438 -DatabaseUser postgres -Port 18080
+        $saved = Get-Content $generatedConfig -Raw -Encoding UTF8 | ConvertFrom-Json
+        Check ($saved.PGPASSWORD -eq $password -and (Get-Acl $generatedConfig).AreAccessRulesProtected) 'Interactive configuration protects and preserves credentials'
+    } finally { Remove-Item Function:\Read-Host }
     $config = @{
         PGHOST='127.0.0.1'; PGPORT='55438'; PGUSER='postgres'; PGDATABASE='toolstock'; PGPASSWORD=$password
         TOOLSTOCK_PORT='18080'; TOOLSTOCK_HOST='127.0.0.1'; TOOLSTOCK_DATA='данные'; TOOLSTOCK_LOG='данные/logs/server.log'
@@ -56,6 +64,15 @@ try {
     Run 'node' @('tests/api.mjs')
     Run 'node' @('tests/domain.mjs')
     $process.Kill(); $process.WaitForExit(); $process=$null
+    Run "$pgbin/createdb.exe" @('native_import')
+    $importConfig = $config.Clone()
+    $importConfig.PGDATABASE = 'native_import'
+    $importConfig.TOOLSTOCK_DATA = Join-Path $temp 'импорт данные'
+    $importPath = Join-Path $temp 'import.json'
+    [IO.File]::WriteAllText($importPath, ($importConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+    Run 'node' @('tests/native-import.mjs', "$package/toolstock.exe", $importPath, (Join-Path $temp 'старая база'))
+    $imported = & "$pgbin/psql.exe" -d native_import -tAc 'SELECT qty FROM inventory WHERE product_id=9 AND state=''new'''
+    Check ($LASTEXITCODE -eq 0 -and $imported.Trim() -eq '7') 'Native importer preserves warehouse quantity'
     # Reuse the same database in a Windows service, then exercise an upgrade and uninstall.
     $serviceRoot = Join-Path $env:ProgramData 'Toolstock'
     if (Test-Path $serviceRoot) { throw 'Smoke test refuses to overwrite an existing Toolstock installation.' }
@@ -68,6 +85,10 @@ try {
     foreach ($round in 1,2) {
         $p = Start-Process $installer -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -PassThru -Wait
         $installed = $true
+        if ($p.ExitCode -ne 0) {
+            $details = if (Test-Path "$serviceRoot/data/logs/setup-error.log") { Get-Content "$serviceRoot/data/logs/setup-error.log" -Raw } else { 'No service setup error log was created.' }
+            throw "Installer run $round failed ($($p.ExitCode)): $details"
+        }
         Check ($p.ExitCode -eq 0) "Installer run $round succeeds"
         Check ((Get-Service Toolstock).Status -eq 'Running') "Service runs after install/upgrade $round"
         Check ((Invoke-RestMethod "$env:TOOLSTOCK_TEST_URL/health").status -eq 'ok') "Service API healthy after install/upgrade $round"
