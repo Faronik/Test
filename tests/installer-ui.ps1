@@ -70,7 +70,7 @@ function Invoke-InstallerRepair {
                         [InstallerUi]::GetWindowRect([InstallerUi]::GetParent($edit),[ref]$parent) | Out-Null
                         Check ($rect.Bottom -le $parent.Bottom -and $rect.Top -ge $parent.Top) 'Connection input fits on the visible wizard page'
                     }
-                    $values = @('127.0.0.1','55438','toolstock','postgres')
+                    $values = @('127.0.0.1',$env:PGPORT,'toolstock','postgres')
                     for ($i=0; $i -lt 4; $i++) { [InstallerUi]::SetText($edits[$i],0x000C,[IntPtr]::Zero,$values[$i]) | Out-Null }
                     $pointer=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
                     try { [InstallerUi]::SetText($edits[4],0x000C,[IntPtr]::Zero,[Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)) | Out-Null }

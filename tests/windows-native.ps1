@@ -11,7 +11,10 @@ if (-not $pgbin) {
 if (-not (Test-Path "$pgbin/initdb.exe")) { throw 'PostgreSQL binaries missing on the runner.' }
 function Run([string]$Program, [string[]]$Arguments) {
     & $Program @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "$Program failed ($LASTEXITCODE)." }
+    if ($LASTEXITCODE -ne 0) {
+        $details = if (Test-Path "$temp/postgres.log") { Get-Content "$temp/postgres.log" -Tail 30 -Encoding UTF8 | Out-String } else { '' }
+        throw "$Program failed ($LASTEXITCODE). $details"
+    }
 }
 function Check([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -24,7 +27,6 @@ $pwfile = Join-Path $temp 'pg-password'
 [IO.File]::WriteAllText($pwfile, $password)
 $env:PGPASSWORD = $password
 $env:PGHOST = '127.0.0.1'
-$env:PGPORT = '55438'
 $env:PGUSER = 'postgres'
 $env:PGDATABASE = 'toolstock'
 $env:TOOLSTOCK_TEST_URL = 'http://127.0.0.1:18080'
@@ -34,7 +36,11 @@ $env:TOOLSTOCK_TEST_LOGIN = Join-Path $temp 'test-login.json'
 try {
     Run "$pgbin/initdb.exe" @('-D',"$temp/pg",'-U','postgres','-A','scram-sha-256',"--pwfile=$pwfile",'--encoding=UTF8')
     Remove-Item $pwfile
-    Run "$pgbin/pg_ctl.exe" @('-D',"$temp/pg",'-l',"$temp/postgres.log",'-o','-h 127.0.0.1 -p 55438','-w','start')
+    $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
+    $listener.Start()
+    try { $databasePort=$listener.LocalEndpoint.Port } finally { $listener.Stop() }
+    $env:PGPORT="$databasePort"
+    Run "$pgbin/pg_ctl.exe" @('-D',"$temp/pg",'-l',"$temp/postgres.log",'-o',"-h 127.0.0.1 -p $databasePort",'-w','start')
     Run "$pgbin/createdb.exe" @('toolstock')
     # Exercise a path with spaces AND Cyrillic, independent of the current directory.
     $package = Join-Path $temp 'Склад сервер'
@@ -43,12 +49,12 @@ try {
     function global:Read-Host { param([string]$Prompt, [switch]$AsSecureString) ConvertTo-SecureString $env:PGPASSWORD -AsPlainText -Force }
     try {
         $generatedConfig = Join-Path $temp 'protected-config.json'
-        & "$package/configure.ps1" -ConfigPath $generatedConfig -DataPath "$temp/configured-data" -DatabasePort 55438 -DatabaseUser postgres -Port 18080
+        & "$package/configure.ps1" -ConfigPath $generatedConfig -DataPath "$temp/configured-data" -DatabasePort $databasePort -DatabaseUser postgres -Port 18080
         $saved = Get-Content $generatedConfig -Raw -Encoding UTF8 | ConvertFrom-Json
         Check ($saved.PGPASSWORD -eq $password -and (Get-Acl $generatedConfig).AreAccessRulesProtected) 'Interactive configuration protects and preserves credentials'
     } finally { Remove-Item Function:\Read-Host }
     $config = @{
-        PGHOST='127.0.0.1'; PGPORT='55438'; PGUSER='postgres'; PGDATABASE='toolstock'; PGPASSWORD=$password
+        PGHOST='127.0.0.1'; PGPORT="$databasePort"; PGUSER='postgres'; PGDATABASE='toolstock'; PGPASSWORD=$password
         TOOLSTOCK_PORT='18080'; TOOLSTOCK_HOST='127.0.0.1'; TOOLSTOCK_DATA='данные'; TOOLSTOCK_LOG='данные/logs/server.log'
     }
     $configPath = Join-Path $package 'toolstock.json'
@@ -129,7 +135,7 @@ try {
     $installed = $true
     Invoke-InstallerRepair -Installer $installer -Password (ConvertTo-SecureString $password -AsPlainText -Force)
     $repaired = Get-Content "$serviceRoot/config/toolstock.json" -Raw -Encoding UTF8 | ConvertFrom-Json
-    Check ($repaired.PGHOST -eq '127.0.0.1' -and $repaired.PGPORT -eq '55438' -and $repaired.PGPASSWORD -eq $password) 'Installer saves corrected connection and password'
+    Check ($repaired.PGHOST -eq '127.0.0.1' -and $repaired.PGPORT -eq "$databasePort" -and $repaired.PGPASSWORD -eq $password) 'Installer saves corrected connection and password'
     Check ($repaired.TOOLSTOCK_PORT -eq '18080' -and $repaired.TOOLSTOCK_DATA -eq $config.TOOLSTOCK_DATA -and $repaired.TOOLSTOCK_SECURE_COOKIE -eq '0') 'Connection repair preserves web port, data path and other settings'
     Check ((Get-Content "$serviceRoot/data/photos/preserve-me.txt" -Raw) -eq 'existing-photo-placeholder') 'Connection repair preserves existing photographs'
     Check ((Invoke-RestMethod "$env:TOOLSTOCK_TEST_URL/health").status -eq 'ok') 'Service is healthy after correcting the connection in the wizard'
