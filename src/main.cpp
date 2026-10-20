@@ -1,4 +1,8 @@
 #include "core.hpp"
+#include "runtime.hpp"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <httplib.h>
 #include <iostream>
 #include <map>
@@ -6,7 +10,10 @@
 #include <chrono>
 #include <mutex>
 
-static fs::path data_dir=env("TOOLSTOCK_DATA","data"),web_dir=env("TOOLSTOCK_WEB","web"),sql_dir=env("TOOLSTOCK_SQL","sql"),docs_dir=env("TOOLSTOCK_DOCS","docs");
+// cpp-httplib 0.11 (Debian) and current Windows vcpkg use different multipart APIs.
+template<class R> static bool has_photo(const R&r){if constexpr(requires{r.form.has_file("photo");})return r.form.has_file("photo");else return r.has_file("photo");}
+template<class R> static auto photo_file(const R&r){if constexpr(requires{r.form.get_file("photo");})return r.form.get_file("photo");else return r.get_file_value("photo");}
+static fs::path data_dir,web_dir,sql_dir,docs_dir;
 static json meta;
 void initialize(DB&db){db.begin();try{db.script(readfile(sql_dir/"001_init.sql"));for(auto&[code,name]:meta["roles"].items())db.q("INSERT INTO role_definitions(code,name,permissions_json,is_system) VALUES($1,$2,$3,1) ON CONFLICT(code) DO NOTHING",{code,name.get<std::string>(),meta["default_permissions"][code].dump()});db.commit();}catch(...){db.rollback();throw;}}
 static void active_product(DB&db,const std::string&id){need(!db.q("SELECT id FROM products WHERE id=$1 AND active=1",{id}).empty(),"Активная карточка не найдена",404);}
@@ -105,7 +112,7 @@ static json api_write(DB&db,const json&u,const httplib::Request&r,json d){
  if(name=="products"){
  if(action=="archive"||action=="restore"){permit(u,"catalog.edit");db.one("SELECT id FROM products WHERE id=$1",{id});if(action=="archive"){need(db.one("SELECT COALESCE(sum(abs(qty)),0)::bigint n FROM inventory WHERE product_id=$1",{id})["n"]==0,"Карточка имеет складские остатки");need(db.one("SELECT COALESCE(sum(abs(qty)),0)::bigint n FROM holdings WHERE product_id=$1",{id})["n"]==0,"Инструмент закреплён за рабочими");}db.q("UPDATE products SET active=$2 WHERE id=$1",{id,action=="restore"?"1":"0"});return {{"ok",true}};}
  if(action=="photo"){
- permit(u,"catalog.edit");auto p=db.one("SELECT * FROM products WHERE id=$1",{id});if(p["params_json"].value("has_been_regrind",false))need(str(u,"role")=="ADMIN","Изменять карточку может администратор",403);need(r.has_file("photo"),"Выберите фотографию");auto f=r.get_file_value("photo");need(f.content.size()<=5*1024*1024,"Фото — не более 5 МБ",413);std::string ext;if(f.content.starts_with("\x89PNG\r\n\x1a\n"))ext="png";else if(f.content.size()>2&&(unsigned char)f.content[0]==255&&(unsigned char)f.content[1]==216)ext="jpg";else if(f.content.starts_with("RIFF")&&f.content.substr(8,4)=="WEBP")ext="webp";need(!ext.empty(),"Фото должно быть PNG, JPG или WebP");auto file=random_hex(16)+"."+ext;std::ofstream out(data_dir/"photos"/file,std::ios::binary);out.write(f.content.data(),f.content.size());need((bool)out,"Не удалось сохранить фото",500);out.close();db.q("UPDATE products SET photo=$2 WHERE id=$1",{id,file});return {{"photo",file}};}
+ permit(u,"catalog.edit");auto p=db.one("SELECT * FROM products WHERE id=$1",{id});if(p["params_json"].value("has_been_regrind",false))need(str(u,"role")=="ADMIN","Изменять карточку может администратор",403);need(has_photo(r),"Выберите фотографию");auto f=photo_file(r);need(f.content.size()<=5*1024*1024,"Фото — не более 5 МБ",413);std::string ext;if(f.content.starts_with("\x89PNG\r\n\x1a\n"))ext="png";else if(f.content.size()>2&&(unsigned char)f.content[0]==255&&(unsigned char)f.content[1]==216)ext="jpg";else if(f.content.starts_with("RIFF")&&f.content.substr(8,4)=="WEBP")ext="webp";need(!ext.empty(),"Фото должно быть PNG, JPG или WebP");auto file=random_hex(16)+"."+ext;std::ofstream out(data_dir/"photos"/file,std::ios::binary);out.write(f.content.data(),f.content.size());need((bool)out,"Не удалось сохранить фото",500);out.close();db.q("UPDATE products SET photo=$2 WHERE id=$1",{id,file});return {{"photo",file}};}
  return product_save(db,u,d,id);}
  if(name=="transactions")return transaction(db,u,id,d);
  if(name=="movements"){need(action=="cancel"||action=="edit","Выберите действие",404);return change_movement(db,u,id,action,d);}
@@ -121,14 +128,16 @@ static json api_write(DB&db,const json&u,const httplib::Request&r,json d){
 static std::mutex login_mutex;
 static std::map<std::string,std::pair<int,std::chrono::steady_clock::time_point>> attempts;
 static void respond(httplib::Response&res,const json&j,int status=200){res.status=status;res.set_content(j.dump(),"application/json; charset=utf-8");}
-int main(int argc,char**argv){
+static int application(const std::vector<std::string>&args){
  try{
- if(argc==2&&std::string(argv[1])=="--healthcheck"){httplib::Client c("127.0.0.1",std::stoi(env("TOOLSTOCK_PORT","8000")));auto r=c.Get("/health");return r&&r->status==200?0:1;}
+ if(args.size()==1&&args[0]=="--healthcheck"){httplib::Client c("127.0.0.1",std::stoi(env("TOOLSTOCK_PORT","8000")));auto r=c.Get("/health");return r&&r->status==200?0:1;}
+ data_dir=fs::u8path(env("TOOLSTOCK_DATA","data"));web_dir=fs::u8path(env("TOOLSTOCK_WEB","web"));sql_dir=fs::u8path(env("TOOLSTOCK_SQL","sql"));docs_dir=fs::u8path(env("TOOLSTOCK_DOCS","docs"));
  meta=json::parse(readfile(web_dir/"catalog-schema.json"));DB db;initialize(db);fs::create_directories(data_dir/"photos");
- if(argc>=3&&std::string(argv[1])=="--import-sqlite"){import_sqlite(db,argv[2],argc>3?fs::path(argv[3]):fs::path(argv[2]).parent_path()/"photos",data_dir/"photos");return 0;}
+ if(args.size()>=2&&args[0]=="--import-sqlite"){need(args.size()<=3,"Use --import-sqlite DATABASE [PHOTOS]");auto source=fs::u8path(args[1]);import_sqlite(db,source,args.size()>2?fs::u8path(args[2]):source.parent_path()/"photos",data_dir/"photos");return 0;}
+ need(args.empty(),"Unknown command line option");
  httplib::Server server;server.new_task_queue=[](){return new httplib::ThreadPool(8);};server.set_payload_max_length(8*1024*1024);server.set_read_timeout(15,0);server.set_write_timeout(15,0);
  server.set_default_headers({{"X-Content-Type-Options","nosniff"},{"X-Frame-Options","DENY"},{"Referrer-Policy","same-origin"},{"Content-Security-Policy","default-src 'self'; img-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"}});
- server.Get("/health",[](const auto&,auto&res){try{DB d;d.one("SELECT version FROM schema_migrations WHERE version=1");respond(res,{{"status","ok"},{"database","postgresql"},{"version","2.0.0"}});}catch(...){respond(res,{{"status","unavailable"}},503);}});
+ server.Get("/health",[](const auto&,auto&res){try{DB d;d.one("SELECT version FROM schema_migrations WHERE version=1");respond(res,{{"status","ok"},{"database","postgresql"},{"version","2.1.0"}});}catch(...){respond(res,{{"status","unavailable"}},503);}});
  server.Get("/api/openapi.json",[](const auto&,auto&res){res.set_content(readfile(docs_dir/"openapi.json"),"application/json");});
  server.Get("/api/docs",[](const auto&,auto&res){res.set_content(readfile(web_dir/"api-docs.html"),"text/html; charset=utf-8");});
  auto handler=[](const httplib::Request&r,httplib::Response&res){
@@ -144,7 +153,7 @@ int main(int argc,char**argv){
  }
  auto u=user_for(db,r);
  if(!writing){auto result=api_get(db,u,r);if(result.contains("__csv")){res.set_header("Content-Disposition","attachment; filename=toolstock.csv");res.set_content(result["__csv"].get<std::string>(),"text/csv; charset=utf-8");}else respond(res,result);return;}
- auto key=r.get_header_value("Idempotency-Key");need(std::regex_match(key,std::regex("[A-Za-z0-9_-]{16,128}")),"Для изменений требуется Idempotency-Key (16–128 символов)");auto fingerprint=sha256(r.method+r.path+d.dump()+(r.has_file("photo")?sha256(r.get_file_value("photo").content):""));db.begin();try{
+ auto key=r.get_header_value("Idempotency-Key");need(std::regex_match(key,std::regex("[A-Za-z0-9_-]{16,128}")),"Для изменений требуется Idempotency-Key (16–128 символов)");auto fingerprint=sha256(r.method+r.path+d.dump()+(has_photo(r)?sha256(photo_file(r).content):""));db.begin();try{
  u=user_for(db,r);
  auto prior=db.q("SELECT fingerprint,response FROM submitted_forms WHERE user_id=$1 AND request_id=$2",{str(u,"id"),key});if(!prior.empty()){need(constant_equal(str(prior[0],"fingerprint"),fingerprint),"Этот ключ уже использован с другими данными",409);db.commit();respond(res,prior[0]["response"]);return;}
  auto result=api_write(db,u,r,d);db.q("INSERT INTO submitted_forms(user_id,request_id,fingerprint,response) VALUES($1,$2,$3,$4)",{str(u,"id"),key,fingerprint,result.dump()});db.commit();respond(res,result);if(r.path=="/api/v1/logout")res.set_header("Set-Cookie","ts_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
@@ -153,8 +162,28 @@ int main(int argc,char**argv){
  };
  server.Get(R"(/api/v1/.*)",handler);server.Post(R"(/api/v1/.*)",handler);server.Put(R"(/api/v1/.*)",handler);server.Patch(R"(/api/v1/.*)",handler);server.Delete(R"(/api/v1/.*)",handler);
  server.Get(R"(/photo/([a-f0-9]{32}\.(png|jpg|jpeg|webp)))",[](const auto&r,auto&res){try{DB d;user_for(d,r);auto file=r.matches[1].str();res.set_content(readfile(data_dir/"photos"/file),file.ends_with("png")?"image/png":file.ends_with("webp")?"image/webp":"image/jpeg");}catch(...){res.status=404;}});
- need(server.set_mount_point("/",web_dir.string()),"Web directory unavailable",500);
+ need(server.set_mount_point("/",[](){auto p=web_dir.u8string();return std::string(reinterpret_cast<const char*>(p.data()),p.size());}()),"Web directory unavailable",500);
  std::cout<<"Toolstock C++ listening on port "<<env("TOOLSTOCK_PORT","8000")<<std::endl;
- return server.listen(env("TOOLSTOCK_HOST","0.0.0.0"),std::stoi(env("TOOLSTOCK_PORT","8000")))?0:1;
+ if(!server.bind_to_port(env("TOOLSTOCK_HOST","0.0.0.0"),std::stoi(env("TOOLSTOCK_PORT","8000"))))throw std::runtime_error("Cannot bind HTTP port");
+ struct StopGuard{~StopGuard(){runtime::on_stop({});}} guard;
+ runtime::on_stop([&server](){server.stop();});
+ if(runtime::stopping())return 0;
+ runtime::ready();
+ return server.listen_after_bind()?0:1;
  }catch(const std::exception&e){std::cerr<<e.what()<<std::endl;return 1;}
 }
+
+static int entry(int argc,char**argv){
+ try{auto options=runtime::configure(argc,argv);return runtime::run(options.service,[&](){return application(options.args);});}
+ catch(const std::exception&e){std::cerr<<e.what()<<std::endl;return 1;}
+}
+#ifdef _WIN32
+int wmain(int argc,wchar_t**argv){
+ std::vector<std::string>values;std::vector<char*>pointers;
+ for(int i=0;i<argc;++i){int n=WideCharToMultiByte(CP_UTF8,0,argv[i],-1,nullptr,0,nullptr,nullptr);std::string s(n,'\0');WideCharToMultiByte(CP_UTF8,0,argv[i],-1,s.data(),n,nullptr,nullptr);s.resize(n-1);values.push_back(std::move(s));}
+ for(auto&v:values)pointers.push_back(v.data());
+ return entry(argc,pointers.data());
+}
+#else
+int main(int argc,char**argv){return entry(argc,argv);}
+#endif

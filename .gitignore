@@ -5,3 +5,6 @@ __pycache__/
 .env
 build/
 .backups/
+dist/
+vcpkg_installed/
+toolstock.json

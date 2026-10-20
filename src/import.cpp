@@ -8,7 +8,7 @@ void import_sqlite(DB&db,const fs::path&source,const fs::path&photo_source,const
  need(fs::is_regular_file(source),"Исходный SQLite-файл не найден");fs::copy_file(source,snapshot);
  auto wal=fs::path(source.string()+"-wal");if(fs::exists(wal)&&fs::file_size(wal)>0)fs::copy_file(wal,snapshot.string()+"-wal");
  // Only the temporary copy may create SQLite's WAL shared-memory files.
- sqlite3*raw=nullptr;need(sqlite3_open_v2(snapshot.c_str(),&raw,SQLITE_OPEN_READONLY,nullptr)==SQLITE_OK,"Не удалось открыть копию SQLite-базы");
+ sqlite3*raw=nullptr;auto snapshot_utf8=snapshot.u8string();need(sqlite3_open_v2(reinterpret_cast<const char*>(snapshot_utf8.c_str()),&raw,SQLITE_OPEN_READONLY,nullptr)==SQLITE_OK,"Не удалось открыть копию SQLite-базы");
  std::unique_ptr<sqlite3,decltype(&sqlite3_close)>sqlite(raw,sqlite3_close);
  sqlite3_exec(raw,"BEGIN",nullptr,nullptr,nullptr);sqlite3_stmt*check=nullptr;need(sqlite3_prepare_v2(raw,"PRAGMA integrity_check",-1,&check,nullptr)==SQLITE_OK,"Не удалось проверить копию SQLite");bool integrity=sqlite3_step(check)==SQLITE_ROW&&std::string((const char*)sqlite3_column_text(check,0))=="ok";sqlite3_finalize(check);need(integrity,"Исходная база повреждена");
  std::vector<fs::path>created;bool committing=false;db.begin();

@@ -1,0 +1,12 @@
+{
+  "PGHOST": "127.0.0.1",
+  "PGPORT": "5432",
+  "PGDATABASE": "toolstock",
+  "PGUSER": "toolstock",
+  "PGPASSWORD": "CHANGE_ME",
+  "PGSSLMODE": "prefer",
+  "TOOLSTOCK_HOST": "127.0.0.1",
+  "TOOLSTOCK_PORT": "8000",
+  "TOOLSTOCK_DATA": "data",
+  "TOOLSTOCK_LOG": "logs/server.log"
+}

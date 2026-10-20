@@ -1,8 +1,20 @@
 # КАТЕКС — учёт инструмента, C++ / PostgreSQL
 
-Сервер работает на **C++20**, база данных — **PostgreSQL 17**. Интерфейс обращается к документированному REST API. Для запуска через Docker Compose Python, Node.js, компилятор C++ и отдельно установленный PostgreSQL **не нужны**: приложение и база запускаются в контейнерах.
+Сервер работает на **C++20**, база данных — **PostgreSQL** (рекомендуется 17). Интерфейс обращается к документированному REST API. Есть два способа установки: нативный сервер Windows без Docker и контейнеры Docker Compose. В обоих случаях работа выполняется в браузере; Python на сервере не нужен.
 
-## Запуск на Windows
+## Windows без Docker
+
+1. Установите PostgreSQL либо подготовьте отдельную пустую базу на существующем сервере.
+2. Скачайте `Toolstock-Setup-2.1.0-windows-x64.exe` из [Releases](https://github.com/Faronik/Test/releases), запустите установщик и укажите подключение к базе.
+3. Откройте `http://localhost:8000` и создайте администратора. Сервер будет автоматически запускаться как служба Windows.
+
+Есть также переносимый ZIP с ручным запуском. Сборка установщика выполняется в [GitHub Actions](https://github.com/Faronik/Test/actions/workflows/windows-native.yml); release публикуется после успешных проверок Windows. ZIP исходников из кнопки **Code → Download ZIP** не содержит готового `.exe`.
+
+Подробная инструкция по подготовке базы, службе, переносу SQLite, обновлению и резервным копиям: [docs/WINDOWS.md](docs/WINDOWS.md).
+
+## Запуск через Docker Compose
+
+В контейнерном варианте Python, Node.js, компилятор и отдельно установленный PostgreSQL не требуются.
 
 1. Установите и запустите Docker Desktop с Linux-контейнерами (WSL2).
 2. Распакуйте проект, запустите `start.bat`.
@@ -74,7 +86,7 @@ cmake --build build --parallel 2
 ./build/toolstock
 ```
 
-Нативный бинарный файл запускайте из корня проекта либо задайте `TOOLSTOCK_WEB`, `TOOLSTOCK_SQL`, `TOOLSTOCK_DOCS`, `TOOLSTOCK_DATA`. Для внешнего PostgreSQL используйте поддерживаемые libpq параметры TLS, включая `sslmode=verify-full` и доверенный корневой сертификат.
+`cmake --install build --prefix build/package` создаёт папку с бинарным файлом и ресурсами. Можно запускать её из любой рабочей папки с `toolstock --config /path/toolstock.json`; пример JSON — `packaging/windows/toolstock.example.json`. Параметры JSON переопределяют одноимённые переменные окружения. Относительные пути считаются от папки конфигурации. Без JSON поддерживается прежний запуск через переменные окружения. Для внешнего PostgreSQL используйте поддерживаемые libpq параметры TLS, включая `sslmode=verify-full` и доверенный корневой сертификат. Сборка Windows описана в `docs/WINDOWS.md`.
 
 ## Резервная копия
 
