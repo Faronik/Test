@@ -9,6 +9,7 @@ public static class InstallerUi {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string name);
     [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr parameter);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc callback, IntPtr parameter);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr window);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, StringBuilder text, int capacity);
@@ -23,6 +24,7 @@ public static class InstallerUi {
         EnumChildWindows(parent, (window, data) => { if (IsWindowVisible(window)) list.Add(window); return true; }, IntPtr.Zero);
         return list.ToArray();
     }
+    public static IntPtr[] Windows() { var list=new List<IntPtr>(); EnumWindows((window,data)=>{if(IsWindowVisible(window))list.Add(window);return true;},IntPtr.Zero); return list.ToArray(); }
     public static string ClassName(IntPtr window) { var s=new StringBuilder(256); GetClassName(window,s,s.Capacity); return s.ToString(); }
     public static string Text(IntPtr window) { var s=new StringBuilder(1024); GetWindowText(window,s,s.Capacity); return s.ToString(); }
     public static string FieldText(IntPtr window) { var s=new StringBuilder(1024); ReadText(window,0x000D,new IntPtr(s.Capacity),s); return s.ToString(); }
@@ -34,12 +36,22 @@ function Invoke-InstallerRepair {
     $process = Start-Process $Installer -ArgumentList '/SP- /LANG=english /SUPPRESSMSGBOXES /NORESTART' -PassThru
     $choiceSeen = $false
     $fieldsSeen = $false
+    $lastPage = 'No wizard window was found.'
     try {
         for ($attempt=0; $attempt -lt 180; $attempt++) {
             if ($process.HasExited) { break }
+            foreach ($dialog in @([InstallerUi]::Windows() | Where-Object { [InstallerUi]::ClassName($_) -eq '#32770' })) {
+                $dialogChildren=@([InstallerUi]::Children($dialog))
+                $message=($dialogChildren | Where-Object { [InstallerUi]::ClassName($_) -notmatch 'Edit' } | ForEach-Object { [InstallerUi]::Text($_) }) -join ' '
+                if ($message.Contains('Сервер работает.')) {
+                    $ok=@($dialogChildren | Where-Object { [InstallerUi]::Text($_) -replace '&','' -eq 'OK' } | Select-Object -First 1)
+                    if ($ok.Count -gt 0) { [InstallerUi]::Click($ok[0]) }
+                } elseif ($message.Contains('Файлы установлены') -or $message.Contains('Не удалось сохранить')) { throw "Interactive installer reported an error: $message" }
+            }
             $wizard = [InstallerUi]::FindWindow('TWizardForm', $null)
             if ($wizard -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 500; continue }
             $children = @([InstallerUi]::Children($wizard))
+            $lastPage=($children | Where-Object { [InstallerUi]::ClassName($_) -notmatch 'Edit' } | ForEach-Object { [InstallerUi]::ClassName($_)+': '+[InstallerUi]::Text($_) }) -join ' | '
             $editChoice = @($children | Where-Object { [InstallerUi]::ClassName($_) -notmatch 'Edit' -and [InstallerUi]::Text($_) -eq 'Изменить подключение к PostgreSQL' })
             if ($editChoice.Count -gt 0) {
                 [InstallerUi]::Click($editChoice[0]); $choiceSeen=$true
@@ -70,7 +82,10 @@ function Invoke-InstallerRepair {
             if ($button.Count -gt 0) { [InstallerUi]::Click($button[0]) }
             Start-Sleep -Milliseconds 700
         }
-        if (-not $process.HasExited) { throw 'Interactive installer timed out.' }
+        if (-not $process.HasExited) {
+            $windows=([InstallerUi]::Windows() | ForEach-Object { [InstallerUi]::ClassName($_)+': '+[InstallerUi]::Text($_) }) -join ' | '
+            throw "Interactive installer timed out. Choice=$choiceSeen Fields=$fieldsSeen. Page: $lastPage. Windows: $windows"
+        }
         Check ($choiceSeen -and $fieldsSeen) 'Reinstallation offers editing and displays the connection fields'
         Check ($process.ExitCode -eq 0) 'Interactive repair installer completes successfully'
     } finally {
