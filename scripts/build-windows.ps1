@@ -4,8 +4,15 @@ $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 if (-not $VcpkgRoot) { throw 'Set VCPKG_INSTALLATION_ROOT to a vcpkg checkout.' }
 function Run([string]$Program, [string[]]$Arguments) {
-    & $Program @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "$Program failed ($LASTEXITCODE)." }
+    $log = New-TemporaryFile
+    try {
+        & $Program @Arguments 2>&1 | Tee-Object -FilePath $log.FullName | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            $details = ((Get-Content $log.FullName -Tail 45) -join "`n").Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            if ($env:GITHUB_ACTIONS) { Write-Host "::error title=Windows build failed::$details" }
+            throw "$Program failed ($LASTEXITCODE)."
+        }
+    } finally { Remove-Item $log.FullName -ErrorAction SilentlyContinue }
 }
 Run 'cmake' @('-S','.', '-B','build/windows', '-A','x64', "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake", '-DVCPKG_TARGET_TRIPLET=x64-windows-static', '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded$<$<CONFIG:Debug>:Debug>')
 Run 'cmake' @('--build','build/windows','--config','Release','--parallel','2')

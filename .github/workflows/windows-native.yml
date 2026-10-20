@@ -25,7 +25,13 @@ jobs:
         run: ./scripts/build-windows.ps1 -VcpkgRoot "$PWD/build/vcpkg" -Installer
       - name: Exercise native server, service and installer
         shell: pwsh
-        run: ./tests/windows-native.ps1
+        run: |
+          try { ./tests/windows-native.ps1 }
+          catch {
+            $message = ($_ | Out-String).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Host "::error title=Windows integration check failed::$message"
+            throw
+          }
       - name: Record SHA256 checksums
         shell: pwsh
         run: |

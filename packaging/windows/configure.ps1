@@ -25,10 +25,11 @@ try {
     # Limit the file ACL before any credentials are written.
     $acl = New-Object Security.AccessControl.FileSecurity
     $acl.SetAccessRuleProtection($true, $false)
-    foreach ($sid in @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value, 'S-1-5-18', 'S-1-5-32-544', 'S-1-5-19')) {
+    foreach ($sid in @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value, 'S-1-5-18', 'S-1-5-32-544')) {
         $rule = New-Object Security.AccessControl.FileSystemAccessRule([Security.Principal.SecurityIdentifier]$sid, 'FullControl', 'Allow')
         $acl.AddAccessRule($rule)
     }
+    $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule([Security.Principal.SecurityIdentifier]'S-1-5-19', 'Read', 'Allow')))
     if (-not (Test-Path -LiteralPath $ConfigPath)) { New-Item -ItemType File -Path $ConfigPath | Out-Null }
     Set-Acl -LiteralPath $ConfigPath -AclObject $acl
     $configuration = [ordered]@{
