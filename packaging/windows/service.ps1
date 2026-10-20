@@ -22,7 +22,10 @@ if ($Action -eq 'Remove') {
 if ($Action -eq 'Install') {
     if (-not (Test-Path -LiteralPath $ConfigPath)) { throw 'Configure the PostgreSQL connection first.' }
     $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([IO.Path]::GetFullPath($DataPath) -ne [IO.Path]::GetFullPath($config.TOOLSTOCK_DATA)) { throw 'DataPath must match TOOLSTOCK_DATA in the configuration.' }
+    $configuredData = $config.TOOLSTOCK_DATA
+    if (-not [IO.Path]::IsPathRooted($configuredData)) { $configuredData = Join-Path (Split-Path ([IO.Path]::GetFullPath($ConfigPath))) $configuredData }
+    if (-not $PSBoundParameters.ContainsKey('DataPath')) { $DataPath = $configuredData }
+    if ([IO.Path]::GetFullPath($DataPath) -ne [IO.Path]::GetFullPath($configuredData)) { throw 'DataPath must match TOOLSTOCK_DATA in the configuration.' }
     New-Item -ItemType Directory -Force -Path $DataPath | Out-Null
     & icacls.exe $DataPath /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)M' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Cannot set data directory permissions.' }

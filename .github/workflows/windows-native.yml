@@ -42,7 +42,7 @@ jobs:
       - name: Exercise native server, service and installer
         shell: pwsh
         run: |
-          try { ./tests/windows-native.ps1 }
+          try { ./tests/installer-config.ps1; ./tests/windows-native.ps1 }
           catch {
             $message = ($_ | Out-String).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
             Write-Host "::error title=Windows integration check failed::$message"

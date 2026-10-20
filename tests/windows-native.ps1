@@ -118,6 +118,24 @@ try {
     Check (-not (Get-Service Toolstock -ErrorAction SilentlyContinue)) 'Uninstaller removes the service'
     Check ((Test-Path "$serviceRoot/config/toolstock.json") -and (Test-Path "$serviceRoot/data")) 'Uninstaller preserves configuration and photos'
     $installed = $false
+    # Reproduce the reported failure: uninstall leaves a config with wrong credentials.
+    $badConfig = Get-Content "$serviceRoot/config/toolstock.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+    $badConfig.PGHOST = 'incorrect-host.example'; $badConfig.PGPORT = '1'; $badConfig.PGPASSWORD = 'incorrect-password'
+    $badConfig | Add-Member -NotePropertyName TOOLSTOCK_SECURE_COOKIE -NotePropertyValue '0'
+    [IO.File]::WriteAllText("$serviceRoot/config/toolstock.json", ($badConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+    New-Item -ItemType Directory -Force "$serviceRoot/data/photos" | Out-Null
+    [IO.File]::WriteAllText("$serviceRoot/data/photos/preserve-me.txt", 'existing-photo-placeholder')
+    . "$PSScriptRoot/installer-ui.ps1"
+    $installed = $true
+    Invoke-InstallerRepair -Installer $installer -Password (ConvertTo-SecureString $password -AsPlainText -Force)
+    $repaired = Get-Content "$serviceRoot/config/toolstock.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+    Check ($repaired.PGHOST -eq '127.0.0.1' -and $repaired.PGPORT -eq '55438' -and $repaired.PGPASSWORD -eq $password) 'Installer saves corrected connection and password'
+    Check ($repaired.TOOLSTOCK_PORT -eq '18080' -and $repaired.TOOLSTOCK_DATA -eq $config.TOOLSTOCK_DATA -and $repaired.TOOLSTOCK_SECURE_COOKIE -eq '0') 'Connection repair preserves web port, data path and other settings'
+    Check ((Get-Content "$serviceRoot/data/photos/preserve-me.txt" -Raw) -eq 'existing-photo-placeholder') 'Connection repair preserves existing photographs'
+    Check ((Invoke-RestMethod "$env:TOOLSTOCK_TEST_URL/health").status -eq 'ok') 'Service is healthy after correcting the connection in the wizard'
+    Check (-not (Test-Path "$serviceRoot/config/setup-connection.json")) 'Installer removes the temporary password request'
+    Run 'powershell.exe' @('-NoProfile','-ExecutionPolicy','Bypass','-File',"$installDir/service.ps1",'-Action','Remove')
+    $installed=$false
 } finally {
     if ($process -and -not $process.HasExited) { $process.Kill(); $process.WaitForExit() }
     if ($installed) { Stop-Service Toolstock -ErrorAction SilentlyContinue; & sc.exe delete Toolstock | Out-Null }

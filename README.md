@@ -5,7 +5,7 @@
 ## Windows без Docker
 
 1. Установите PostgreSQL либо подготовьте отдельную пустую базу на существующем сервере.
-2. Скачайте `Toolstock-Setup-2.1.0-windows-x64.exe` из [Releases](https://github.com/Faronik/Test/releases), запустите установщик и укажите подключение к базе.
+2. Скачайте `Toolstock-Setup-2.1.1-windows-x64.exe` из [Releases](https://github.com/Faronik/Test/releases), запустите установщик и укажите подключение к базе.
 3. Откройте `http://localhost:8000` и создайте администратора. Сервер будет автоматически запускаться как служба Windows.
 
 Есть также переносимый ZIP с ручным запуском. Сборка установщика выполняется в [GitHub Actions](https://github.com/Faronik/Test/actions/workflows/windows-native.yml); release публикуется после успешных проверок Windows. ZIP исходников из кнопки **Code → Download ZIP** не содержит готового `.exe`.

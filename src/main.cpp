@@ -137,7 +137,7 @@ static int application(const std::vector<std::string>&args){
  need(args.empty(),"Unknown command line option");
  httplib::Server server;server.new_task_queue=[](){return new httplib::ThreadPool(8);};server.set_payload_max_length(8*1024*1024);server.set_read_timeout(15,0);server.set_write_timeout(15,0);
  server.set_default_headers({{"X-Content-Type-Options","nosniff"},{"X-Frame-Options","DENY"},{"Referrer-Policy","same-origin"},{"Content-Security-Policy","default-src 'self'; img-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"}});
- server.Get("/health",[](const auto&,auto&res){try{DB d;d.one("SELECT version FROM schema_migrations WHERE version=1");respond(res,{{"status","ok"},{"database","postgresql"},{"version","2.1.0"}});}catch(...){respond(res,{{"status","unavailable"}},503);}});
+ server.Get("/health",[](const auto&,auto&res){try{DB d;d.one("SELECT version FROM schema_migrations WHERE version=1");respond(res,{{"status","ok"},{"database","postgresql"},{"version","2.1.1"}});}catch(...){respond(res,{{"status","unavailable"}},503);}});
  server.Get("/api/openapi.json",[](const auto&,auto&res){res.set_content(readfile(docs_dir/"openapi.json"),"application/json");});
  server.Get("/api/docs",[](const auto&,auto&res){res.set_content(readfile(web_dir/"api-docs.html"),"text/html; charset=utf-8");});
  auto handler=[](const httplib::Request&r,httplib::Response&res){

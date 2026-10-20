@@ -2,7 +2,7 @@
   #define PackageDir "..\..\build\windows-package"
 #endif
 #ifndef AppVersion
-  #define AppVersion "2.1.0"
+  #define AppVersion "2.1.1"
 #endif
 [Setup]
 AppId={{FA099D8B-DC4E-4782-956B-68E60999F889}
@@ -18,6 +18,7 @@ PrivilegesRequired=admin
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+WizardSizePercent=120,130
 UninstallDisplayIcon={app}\toolstock.exe
 CloseApplications=no
 SetupLogging=no
@@ -30,6 +31,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "lan"; Description: "Разрешить доступ из локальной сети (профиль сети Windows: Частная)"; Flags: unchecked
 
 [Files]
+Source: "{#PackageDir}\installer-config.ps1"; Flags: dontcopy
 Source: "{#PackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "toolstock.json,data\*,logs\*"
 
 [Icons]
@@ -41,7 +43,10 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 
 [Code]
 var
+  ConnectionActionPage: TWizardPage;
+  KeepConnectionRadio, ChangeConnectionRadio: TNewRadioButton;
   DatabasePage: TInputQueryWizardPage;
+  HasSavedPassword: Boolean;
   ExistingConfiguration: Boolean;
   StartupFailed: Boolean;
 
@@ -60,10 +65,39 @@ begin
   Result := '"' + Value + '"';
 end;
 
+function EditConnection: Boolean;
+begin
+  Result := not ExistingConfiguration or ChangeConnectionRadio.Checked;
+end;
+
+function ConnectionValue(const Name, Fallback, Ini: String): String;
+var Value: String;
+begin
+  Value := GetIniString('Connection', Name, '', Ini);
+  if Length(Value) > 1 then Result := Copy(Value, 2, Length(Value) - 1)
+  else Result := Fallback;
+end;
+
 procedure InitializeWizard;
+var Ini: String; Code: Integer;
 begin
   ExistingConfiguration := FileExists(ConfigPath);
-  DatabasePage := CreateInputQueryPage(wpSelectTasks,
+  ConnectionActionPage := CreateCustomPage(wpSelectTasks,
+    'Сохранённые настройки подключения', 'Можно сохранить прежние параметры или указать новые.');
+  KeepConnectionRadio := TNewRadioButton.Create(WizardForm);
+  KeepConnectionRadio.Parent := ConnectionActionPage.Surface;
+  KeepConnectionRadio.Caption := 'Сохранить текущее подключение';
+  KeepConnectionRadio.Width := ConnectionActionPage.SurfaceWidth;
+  KeepConnectionRadio.Height := ScaleY(32);
+  KeepConnectionRadio.Top := ScaleY(16);
+  KeepConnectionRadio.Checked := True;
+  ChangeConnectionRadio := TNewRadioButton.Create(WizardForm);
+  ChangeConnectionRadio.Parent := ConnectionActionPage.Surface;
+  ChangeConnectionRadio.Caption := 'Изменить подключение к PostgreSQL';
+  ChangeConnectionRadio.Width := ConnectionActionPage.SurfaceWidth;
+  ChangeConnectionRadio.Height := ScaleY(32);
+  ChangeConnectionRadio.Top := ScaleY(64);
+  DatabasePage := CreateInputQueryPage(ConnectionActionPage.ID,
     'Подключение к PostgreSQL', 'PostgreSQL должен быть установлен и запущен.',
     'Укажите отдельную базу и её владельца (не суперпользователя). Инструкция — WINDOWS.md. Пароль сохраняется в защищённом файле на этом компьютере.');
   DatabasePage.Add('Адрес сервера PostgreSQL:', False);
@@ -75,11 +109,29 @@ begin
   DatabasePage.Values[1] := '5432';
   DatabasePage.Values[2] := 'toolstock';
   DatabasePage.Values[3] := 'toolstock';
+  if ExistingConfiguration then begin
+    ExtractTemporaryFile('installer-config.ps1');
+    Ini := ExpandConstant('{tmp}\connection.ini');
+    if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\installer-config.ps1') +
+      '" -Mode Inspect -ConfigPath "' + ConfigPath + '" -ExchangePath "' + Ini + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0) then begin
+      DatabasePage.Values[0] := ConnectionValue('PGHOST', '127.0.0.1', Ini);
+      DatabasePage.Values[1] := ConnectionValue('PGPORT', '5432', Ini);
+      DatabasePage.Values[2] := ConnectionValue('PGDATABASE', 'toolstock', Ini);
+      DatabasePage.Values[3] := ConnectionValue('PGUSER', 'toolstock', Ini);
+      HasSavedPassword := GetIniString('Connection', 'HasPassword', '0', Ini) = '1';
+      DeleteFile(Ini);
+    end;
+    if HasSavedPassword then DatabasePage.PromptLabels[4].Caption := 'Новый пароль (пусто — сохранить прежний):';
+  end;
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := ExistingConfiguration and ((PageID = DatabasePage.ID) or (PageID = wpSelectTasks));
+  Result := ((PageID = ConnectionActionPage.ID) and not ExistingConfiguration) or
+    ((PageID = DatabasePage.ID) and not EditConnection) or
+    ((PageID = wpSelectTasks) and ExistingConfiguration);
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -88,7 +140,7 @@ begin
   Result := True;
   if CurPageID <> DatabasePage.ID then Exit;
   for I := 0 to 4 do
-    if Length(Trim(DatabasePage.Values[I])) = 0 then begin
+    if (Length(Trim(DatabasePage.Values[I])) = 0) and not ((I = 4) and HasSavedPassword and ExistingConfiguration) then begin
       MsgBox('Заполните все параметры подключения.', mbError, MB_OK);
       Result := False; Exit;
     end;
@@ -111,12 +163,12 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var Directory, DataDirectory, Body, Host, Params: String; Code: Integer;
+var Directory, DataDirectory, Body, Host, Params, Request: String; Code: Integer;
 begin
   if CurStep <> ssPostInstall then Exit;
   Directory := ExpandConstant('{commonappdata}\Toolstock\config');
   DataDirectory := ExpandConstant('{commonappdata}\Toolstock\data');
-  if not ExistingConfiguration then begin
+  if EditConnection then begin
     if not ForceDirectories(Directory) then RaiseException('Cannot create configuration directory');
     { Protect the directory BEFORE writing the password. Numeric SIDs work on localized Windows. }
     if not Exec(ExpandConstant('{sys}\icacls.exe'), '"' + Directory + '" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-19:(OI)(CI)R"', '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
@@ -131,11 +183,21 @@ begin
       ',"PGSSLMODE":"prefer","TOOLSTOCK_HOST":' + EscapeJson(Host) +
       ',"TOOLSTOCK_PORT":"8000","TOOLSTOCK_DATA":' + EscapeJson(DataDirectory) +
       ',"TOOLSTOCK_LOG":' + EscapeJson(DataDirectory + '\logs\server.log') + '}';
-    if not SaveStringToFile(ConfigPath, UTF8Encode(Body), False) then RaiseException('Cannot save configuration');
-    DatabasePage.Values[4] := ''; Body := '';
+    Request := Directory + '\setup-connection.json';
+    try
+      if not SaveStringToFile(Request, UTF8Encode(Body), False) then RaiseException('Cannot write connection request');
+      if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+        '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\installer-config.ps1') +
+        '" -Mode Apply -ConfigPath "' + ConfigPath + '" -ExchangePath "' + Request + '"',
+        '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
+        RaiseException('Не удалось сохранить подключение. Существующие настройки сохранены.');
+    finally
+      DeleteFile(Request);
+      DatabasePage.Values[4] := ''; Body := '';
+    end;
   end;
   Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\service.ps1') +
-    '" -Action Install -ConfigPath "' + ConfigPath + '" -DataPath "' + DataDirectory + '"';
+    '" -Action Install -ConfigPath "' + ConfigPath + '"';
   if WizardIsTaskSelected('lan') then Params := Params + ' -Lan';
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params,
     '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then begin

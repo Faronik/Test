@@ -36,7 +36,7 @@ Get-ChildItem build/windows/vcpkg_installed/x64-windows-static/share -Directory 
     if (Test-Path $copyright) { Copy-Item $copyright (Join-Path $licenses ($_.Name + '.txt')) }
 }
 New-Item -ItemType Directory -Force dist | Out-Null
-Compress-Archive -Path build/windows-package/* -DestinationPath dist/Toolstock-2.1.0-windows-x64.zip -Force
+Compress-Archive -Path build/windows-package/* -DestinationPath dist/Toolstock-2.1.1-windows-x64.zip -Force
 if ($Installer) {
     $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
     if (-not (Test-Path $compiler)) { throw 'Install Inno Setup 6 before building the installer.' }
