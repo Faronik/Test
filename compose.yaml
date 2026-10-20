@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: toolstock
+      POSTGRES_USER: toolstock
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U toolstock -d toolstock"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build: .
+    environment:
+      PGHOST: db
+      PGDATABASE: toolstock
+      PGUSER: toolstock
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Create .env with POSTGRES_PASSWORD}
+      TOOLSTOCK_SECURE_COOKIE: ${TOOLSTOCK_SECURE_COOKIE:-0}
+    ports:
+      - "${TOOLSTOCK_BIND:-0.0.0.0}:${TOOLSTOCK_PORT:-8000}:8000"
+    volumes:
+      - photos:/var/lib/toolstock/photos
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "toolstock", "--healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  photos:

@@ -1,0 +1,383 @@
+{
+  "categories": {
+    "consumable": [
+      "Пластина",
+      "Фреза",
+      "Резьбофреза",
+      "Сверло",
+      "Метчик",
+      "Плашка",
+      "Развертка",
+      "Резец",
+      "Борштанга",
+      "Зенкер",
+      "Зенковка",
+      "Пила",
+      "Нож",
+      "Абразив",
+      "Цанга",
+      "Прочее"
+    ],
+    "fixture": [
+      "Оправка",
+      "Державка",
+      "Втулка",
+      "Патрон",
+      "Цанговый патрон",
+      "Цанга",
+      "Расточная система",
+      "Расточная головка",
+      "Переходник",
+      "Удлинитель",
+      "Зажим",
+      "Зажимное приспособление",
+      "Тиски",
+      "Призма",
+      "Прочее"
+    ]
+  },
+  "permissions": {
+    "dashboard": "Обзор",
+    "catalog.view": "Просмотр каталога",
+    "catalog.edit": "Создание и изменение карточек",
+    "transactions.manage": "Проведение складских операций",
+    "reports.view": "Отчёты и выгрузки",
+    "history.view": "Журнал действий",
+    "purchasing.view": "Просмотр заявок на закупку",
+    "purchasing.manage": "Создание заявок на закупку"
+  },
+  "default_permissions": {
+    "ADMIN": [
+      "dashboard",
+      "catalog.view",
+      "catalog.edit",
+      "transactions.manage",
+      "reports.view",
+      "history.view",
+      "purchasing.view",
+      "purchasing.manage"
+    ],
+    "STOREKEEPER": [
+      "dashboard",
+      "catalog.view",
+      "catalog.edit",
+      "transactions.manage",
+      "reports.view",
+      "history.view",
+      "purchasing.view",
+      "purchasing.manage"
+    ],
+    "WORKER": [
+      "dashboard",
+      "catalog.view",
+      "reports.view"
+    ]
+  },
+  "roles": {
+    "ADMIN": "Администратор",
+    "STOREKEEPER": "Кладовщик",
+    "WORKER": "Рабочий"
+  },
+  "states": {
+    "new": "Новый",
+    "used": "БУ — после работы",
+    "sharpened": "После переточки",
+    "regrind_queue": "К отправке на переточку",
+    "regrind": "На переточке"
+  },
+  "iso_fields": [
+    [
+      "shape",
+      "Форма пластины",
+      [
+        [
+          "H",
+          "H"
+        ],
+        [
+          "O",
+          "O"
+        ],
+        [
+          "P",
+          "P"
+        ],
+        [
+          "S",
+          "S"
+        ],
+        [
+          "T",
+          "T"
+        ],
+        [
+          "C",
+          "C"
+        ],
+        [
+          "D",
+          "D"
+        ],
+        [
+          "E",
+          "E"
+        ],
+        [
+          "M",
+          "M"
+        ],
+        [
+          "V",
+          "V"
+        ],
+        [
+          "W",
+          "W"
+        ],
+        [
+          "L",
+          "L"
+        ],
+        [
+          "A",
+          "A"
+        ],
+        [
+          "B",
+          "B"
+        ],
+        [
+          "K",
+          "K"
+        ],
+        [
+          "R",
+          "R"
+        ]
+      ]
+    ],
+    [
+      "clearance",
+      "Задний угол",
+      [
+        [
+          "A — 3°",
+          "A"
+        ],
+        [
+          "B — 5°",
+          "B"
+        ],
+        [
+          "C — 7°",
+          "C"
+        ],
+        [
+          "D — 15°",
+          "D"
+        ],
+        [
+          "E — 20°",
+          "E"
+        ],
+        [
+          "F — 25°",
+          "F"
+        ],
+        [
+          "G — 30°",
+          "G"
+        ],
+        [
+          "N — 0°",
+          "N"
+        ],
+        [
+          "P — 11°",
+          "P"
+        ],
+        [
+          "O — другой",
+          "O"
+        ]
+      ]
+    ],
+    [
+      "tolerance",
+      "Класс допуска",
+      [
+        [
+          "A",
+          "A"
+        ],
+        [
+          "F",
+          "F"
+        ],
+        [
+          "C",
+          "C"
+        ],
+        [
+          "H",
+          "H"
+        ],
+        [
+          "E",
+          "E"
+        ],
+        [
+          "G",
+          "G"
+        ],
+        [
+          "J",
+          "J"
+        ],
+        [
+          "K",
+          "K"
+        ],
+        [
+          "L",
+          "L"
+        ],
+        [
+          "M",
+          "M"
+        ],
+        [
+          "N",
+          "N"
+        ],
+        [
+          "U",
+          "U"
+        ]
+      ]
+    ],
+    [
+      "fixing",
+      "Отверстие / стружколом",
+      [
+        [
+          "N — без стружколома",
+          "N"
+        ],
+        [
+          "R — без отверстия, канавка с одной стороны",
+          "R"
+        ],
+        [
+          "F — канавка с двух сторон",
+          "F"
+        ],
+        [
+          "A — цилиндрическое отверстие, без канавки",
+          "A"
+        ],
+        [
+          "M — отверстие, канавка с одной стороны",
+          "M"
+        ],
+        [
+          "G — отверстие, канавка с двух сторон",
+          "G"
+        ],
+        [
+          "W — отверстие с частичной зенковкой, без канавки",
+          "W"
+        ],
+        [
+          "T — отверстие с частичной зенковкой, канавка",
+          "T"
+        ],
+        [
+          "X — специальное исполнение",
+          "X"
+        ]
+      ]
+    ]
+  ],
+  "material_groups": {
+    "P": "Стали",
+    "M": "Нержавеющие стали",
+    "K": "Чугуны",
+    "N": "Цветные металлы",
+    "S": "Жаропрочные сплавы и титан",
+    "H": "Закаленные материалы"
+  },
+  "parameters_html": "<div class=\"parameter-family\" data-family=\"geometry\"><h3>Размеры и параметры инструмента</h3><div class=\"parameter-grid\"><label class=\"field\"><span>Ø, мм</span><input type=\"number\" name=\"diameter\" value=\"\"  step=\"any\" min=\"0\"></label><label class=\"field\"><span>l1, мм</span><input type=\"number\" name=\"l1\" value=\"\"  step=\"any\" min=\"0\"></label><label class=\"field\"><span>L, мм</span><input type=\"number\" name=\"length\" value=\"\"  step=\"any\" min=\"0\"></label><label class=\"field\"><span>z — число зубьев</span><input type=\"number\" name=\"z\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>d хвостовика, мм</span><input type=\"number\" name=\"shank\" value=\"\"  step=\"any\" min=\"0\"></label><label class=\"field\"><span>r, мм</span><input type=\"number\" name=\"radius\" value=\"\"  step=\"any\" min=\"0\"></label><label class=\"field\"><span>Другие параметры</span><input type=\"text\" name=\"extra\" value=\"\"  placeholder=\"Например: покрытие, угол, исполнение\"></label></div></div><div class=\"parameter-family\" data-family=\"insert\"><h3>Сменная пластина для корпусного инструмента</h3><div class=\"parameter-grid\"><label class=\"field\"><span>Обозначение устанавливаемой сменной пластины</span><input type=\"text\" name=\"insert_designation\" value=\"\"  placeholder=\"Например: APKT1604PDR\"></label><label class=\"field\"><span>Количество гнезд / пластин</span><input type=\"number\" name=\"insert_count\" value=\"\"  step=\"1\" min=\"0\"></label></div></div><div class=\"parameter-family\" data-family=\"thread\"><h3>Параметры резьбы</h3><div class=\"parameter-grid\"><label class=\"field\"><span>Тип резьбонарезного инструмента</span><select name=\"thread_tool_type\" required ><option value=\"\">Выберите</option><option value=\"single\">Однопрофильный</option><option value=\"multi\">Многопрофильный</option><option value=\"tap_cut\">Метчик режущий</option><option value=\"tap_form\">Метчик раскатной</option><option value=\"die\">Плашка</option><option value=\"other\">Другое</option></select></label><label class=\"field\"><span>Под какую резьбу</span><input type=\"text\" name=\"thread_size\" value=\"\" required placeholder=\"Например: M16, M16x1.5, G1/2\"></label><label class=\"field\"><span>Шаг резьбы, мм</span><input type=\"number\" name=\"pitch\" value=\"\" required step=\"any\" min=\"0\"></label><label class=\"field\"><span>Профиль / стандарт резьбы</span><select name=\"thread_standard\"  ><option value=\"\">Выберите</option><option value=\"Метрическая ISO\">Метрическая ISO</option><option value=\"UN / UNC / UNF\">UN / UNC / UNF</option><option value=\"Трубная BSP / G\">Трубная BSP / G</option><option value=\"NPT\">NPT</option><option value=\"Трапецеидальная\">Трапецеидальная</option><option value=\"Другая\">Другая</option></select></label><label class=\"field\"><span>Направление резьбы</span><select name=\"thread_hand\"  ><option value=\"\">Выберите</option><option value=\"R\">Правая</option><option value=\"L\">Левая</option></select></label><label class=\"field\"><span>Обработка отверстия</span><select name=\"hole_type\"  ><option value=\"\">Выберите</option><option value=\"through\">Сквозное</option><option value=\"blind\">Глухое</option><option value=\"any\">Универсальное</option></select></label></div></div><div class=\"parameter-family\" data-family=\"coolant\"><h3>Подача СОЖ</h3><div class=\"parameter-grid\"><label class=\"field\"><span>Подача СОЖ</span><select name=\"coolant\" required ><option value=\"\">Выберите</option><option value=\"none\">Не предусмотрена</option><option value=\"external\">Внешняя</option><option value=\"internal\">Внутренняя через инструмент</option><option value=\"both\">Внешняя и внутренняя</option></select></label></div></div><div class=\"parameter-family\" data-family=\"plate\"><div class=\"parameter-grid\"><label class=\"field\"><span>Тип пластины</span><select name=\"insert_kind\" required ><option value=\"\">Выберите</option><option value=\"iso\">Токарная пластина по ISO 1832</option><option value=\"grooving\">Канавочная пластина</option><option value=\"parting\">Отрезная пластина</option><option value=\"thread\">Резьбовая пластина</option></select></label><div data-insert-kind=\"thread\"><label class=\"field\"><span>Обозначение резьбовой пластины</span><input type=\"text\" name=\"thread_insert_designation\" value=\"\" required placeholder=\"Например: 16ERM AG60, 16IRAG60-TC, 16IR1.50 ISO, 21N3.5ISO\"></label><label class=\"field\"><span>Шаг резьбы, мм</span><input type=\"number\" name=\"thread_insert_pitch\" value=\"\"  step=\"any\" min=\"0\"></label></div><div data-insert-kind=\"special\"><label class=\"field\"><span>Обозначение канавочной / отрезной пластины</span><input type=\"text\" name=\"plate_designation\" value=\"\" required placeholder=\"Например: MGMN300-M или GTN-2\"></label></div><label class=\"field\"><span>Тип стружколома</span><input type=\"text\" name=\"chipbreaker\" value=\"\"  placeholder=\"Например: -M, -GM, -GF\"></label><label class=\"field\"><span>Материал пластины</span><input type=\"text\" name=\"insert_material\" value=\"\"  placeholder=\"Например: твердый сплав, кермет, керамика\"></label></div></div>",
+  "fixture_html": "<div class=\"parameter-family\" data-family=\"fixture\"><h3>Параметры оснастки</h3><div class=\"parameter-grid\"><label class=\"field\"><span>Группа оснастки</span><select name=\"fixture_group\" required ><option value=\"\">Выберите</option><option value=\"turning\">Токарная</option><option value=\"milling\">Фрезерная</option><option value=\"general\" selected>Общая</option></select></label><label class=\"field\"><span>Подтип оснастки</span><select name=\"fixture_type\" required ><option value=\"\">Выберите</option><option value=\"bmt_block\">Блок BMT</option><option value=\"bot_block\">Блок BOT</option><option value=\"vdi_block\">Блок VDI</option><option value=\"turn_holder\">Токарный держатель</option><option value=\"transition_bushing\">Переходная втулка</option><option value=\"turn_collet\">Токарная цанга</option><option value=\"turn_chuck\">Токарный патрон</option><option value=\"mill_holder\">Фрезерная оправка / держатель</option><option value=\"mill_chuck\">Фрезерный патрон</option><option value=\"mill_collet\">Фрезерная цанга</option><option value=\"vise\">Тиски / зажим</option><option value=\"boring\">Расточная система</option><option value=\"angle_head\">Угловая головка</option><option value=\"other\">Другое</option></select></label><label class=\"field\"><span>Интерфейс станка / шпинделя</span><select name=\"interface\"  ><option value=\"\">Выберите</option><option value=\"BMT\">BMT</option><option value=\"BOT\">BOT</option><option value=\"VDI\">VDI</option><option value=\"BT\">BT</option><option value=\"BBT\">BBT</option><option value=\"SK\">SK</option><option value=\"HSK\">HSK</option><option value=\"Morse\">Morse</option><option value=\"Цилиндрический\">Цилиндрический</option><option value=\"Прочее\">Прочее</option></select></label><label class=\"field\"><span>Размер интерфейса / конуса</span><input type=\"text\" name=\"interface_size\" value=\"\"  ></label><label class=\"field\"><span>Исполнение</span><select name=\"orientation\"  ><option value=\"\">Выберите</option><option value=\"axial\">Осевое</option><option value=\"radial\">Радиальное</option><option value=\"straight\">Прямое</option><option value=\"angle\">Угловое</option></select></label></div><div data-fixture-detail=\"block\"><h4>Габариты токарного блока</h4><div class=\"parameter-grid\"><label class=\"field\"><span>Размер A, мм</span><input type=\"number\" name=\"block_a\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Размер B, мм</span><input type=\"number\" name=\"block_b\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Размер C, мм</span><input type=\"number\" name=\"block_c\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Размер D, мм</span><input type=\"number\" name=\"block_d\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Размер E, мм</span><input type=\"number\" name=\"block_e\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Размер F, мм</span><input type=\"number\" name=\"block_f\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Размер G, мм</span><input type=\"number\" name=\"block_g\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Размер H, мм</span><input type=\"number\" name=\"block_h\" value=\"\"  step=\"1\" min=\"0\"></label></div></div><div data-fixture-detail=\"holder\"><h4>Габариты держателя</h4><div class=\"parameter-grid\"><label class=\"field\"><span>D, мм</span><input type=\"number\" name=\"holder_d\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>H, мм</span><input type=\"number\" name=\"holder_h\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>H1, мм</span><input type=\"number\" name=\"holder_h1\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>L, мм</span><input type=\"number\" name=\"holder_l\" value=\"\"  step=\"1\" min=\"0\"></label></div></div><div data-fixture-detail=\"bushing\"><h4>Переходная втулка</h4><div class=\"parameter-grid\"><label class=\"field\"><span>Наружный конус / интерфейс</span><input type=\"text\" name=\"bushing_outer\" value=\"\"  ></label><label class=\"field\"><span>Внутренний конус / интерфейс</span><input type=\"text\" name=\"bushing_inner\" value=\"\"  ></label><label class=\"field\"><span>Длина втулки, мм</span><input type=\"number\" name=\"fixture_length\" value=\"\"  step=\"1\" min=\"0\"></label></div></div><div data-fixture-detail=\"vise\"><h4>Тиски и зажимы</h4><div class=\"parameter-grid\"><label class=\"field\"><span>Ширина губок, мм</span><input type=\"number\" name=\"jaw_width\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Максимальное раскрытие, мм</span><input type=\"number\" name=\"vise_opening\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Высота губок, мм</span><input type=\"number\" name=\"jaw_height\" value=\"\"  step=\"1\" min=\"0\"></label></div></div><div data-fixture-detail=\"boring\"><h4>Расточная система</h4><div class=\"parameter-grid\"><label class=\"field\"><span>Минимальный диаметр растачивания, мм</span><input type=\"number\" name=\"bore_min\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Максимальный диаметр растачивания, мм</span><input type=\"number\" name=\"bore_max\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Точность / биение, мм</span><input type=\"number\" name=\"accuracy\" value=\"\"  step=\"any\" min=\"0\"></label><label class=\"field\"><span>Состав набора</span><input type=\"text\" name=\"set_components\" value=\"\"  ></label></div></div><div data-fixture-detail=\"mill\"><h4>Фрезерная оснастка</h4><div class=\"parameter-grid\"><label class=\"field\"><span>Диаметр зажима, мм</span><input type=\"number\" name=\"clamp_diameter\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Рабочий вылет, мм</span><input type=\"number\" name=\"fixture_reach\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Длина, мм</span><input type=\"number\" name=\"fixture_length\" value=\"\"  step=\"1\" min=\"0\"></label><label class=\"field\"><span>Максимальные обороты, об/мин</span><input type=\"number\" name=\"max_rpm\" value=\"\"  step=\"1\" min=\"0\"></label></div></div><div data-fixture-detail=\"common\"><div class=\"parameter-grid\"><label class=\"field\"><span>Диапазон зажима / отверстия</span><input type=\"text\" name=\"range\" value=\"\"  ></label><label class=\"field\"><span>Другие параметры</span><input type=\"text\" name=\"fixture_extra\" value=\"\"  ></label></div></div></div>",
+  "iso_html": "<div class=\"iso-grid\"><label class=\"field\"><span>Форма пластины</span><select name=\"iso_shape\" required ><option value=\"\">Выберите</option><option value=\"H\">H</option><option value=\"O\">O</option><option value=\"P\">P</option><option value=\"S\">S</option><option value=\"T\">T</option><option value=\"C\">C</option><option value=\"D\">D</option><option value=\"E\">E</option><option value=\"M\">M</option><option value=\"V\">V</option><option value=\"W\">W</option><option value=\"L\">L</option><option value=\"A\">A</option><option value=\"B\">B</option><option value=\"K\">K</option><option value=\"R\">R</option></select></label><label class=\"field\"><span>Задний угол</span><select name=\"iso_clearance\" required ><option value=\"\">Выберите</option><option value=\"A\">A — 3°</option><option value=\"B\">B — 5°</option><option value=\"C\">C — 7°</option><option value=\"D\">D — 15°</option><option value=\"E\">E — 20°</option><option value=\"F\">F — 25°</option><option value=\"G\">G — 30°</option><option value=\"N\">N — 0°</option><option value=\"P\">P — 11°</option><option value=\"O\">O — другой</option></select></label><label class=\"field\"><span>Класс допуска</span><select name=\"iso_tolerance\" required ><option value=\"\">Выберите</option><option value=\"A\">A</option><option value=\"F\">F</option><option value=\"C\">C</option><option value=\"H\">H</option><option value=\"E\">E</option><option value=\"G\">G</option><option value=\"J\">J</option><option value=\"K\">K</option><option value=\"L\">L</option><option value=\"M\">M</option><option value=\"N\">N</option><option value=\"U\">U</option></select></label><label class=\"field\"><span>Отверстие / стружколом</span><select name=\"iso_fixing\" required ><option value=\"\">Выберите</option><option value=\"N\">N — без стружколома</option><option value=\"R\">R — без отверстия, канавка с одной стороны</option><option value=\"F\">F — канавка с двух сторон</option><option value=\"A\">A — цилиндрическое отверстие, без канавки</option><option value=\"M\">M — отверстие, канавка с одной стороны</option><option value=\"G\">G — отверстие, канавка с двух сторон</option><option value=\"W\">W — отверстие с частичной зенковкой, без канавки</option><option value=\"T\">T — отверстие с частичной зенковкой, канавка</option><option value=\"X\">X — специальное исполнение</option></select></label><label class=\"field\"><span>Размер пластины — позиция 5, например 12</span><input type=\"text\" name=\"iso_size\" value=\"\" required maxlength=\"2\" pattern=\"[A-Za-z0-9]{2}\" placeholder=\"12\"></label><label class=\"field\"><span>Толщина — позиция 6, код ISO, например 04</span><input type=\"text\" name=\"iso_thickness\" value=\"\" required maxlength=\"2\" pattern=\"[A-Za-z0-9]{2}\" placeholder=\"04\"></label><label class=\"field\"><span>Радиус вершины — позиция 7, например 02</span><input type=\"text\" name=\"iso_corner\" value=\"\" required maxlength=\"2\" pattern=\"[0-9]{2}\" placeholder=\"02\"></label></div><p class=\"form-help\">Семь полей формируют обязательную часть обозначения ISO 1832. Пример: C · C · G · X · 12 · 04 · 02 → CCGX120402.</p><p class=\"iso-preview\">Обозначение: <b id=\"iso-preview\">—</b></p>",
+  "groups_html": "<fieldset class=\"field iso513-field\"><legend>Группы применяемости по ISO 513 (обрабатываемый материал)</legend><div class=\"iso513-options\"><label class=\"iso513-option\"><input type=\"checkbox\" name=\"material_groups\" value=\"P\"><span><b>P</b> — Стали</span></label><label class=\"iso513-option\"><input type=\"checkbox\" name=\"material_groups\" value=\"M\"><span><b>M</b> — Нержавеющие стали</span></label><label class=\"iso513-option\"><input type=\"checkbox\" name=\"material_groups\" value=\"K\"><span><b>K</b> — Чугуны</span></label><label class=\"iso513-option\"><input type=\"checkbox\" name=\"material_groups\" value=\"N\"><span><b>N</b> — Цветные металлы</span></label><label class=\"iso513-option\"><input type=\"checkbox\" name=\"material_groups\" value=\"S\"><span><b>S</b> — Жаропрочные сплавы и титан</span></label><label class=\"iso513-option\"><input type=\"checkbox\" name=\"material_groups\" value=\"H\"><span><b>H</b> — Закаленные материалы</span></label></div><small class=\"form-help\">Можно выбрать несколько групп.</small></fieldset>",
+  "families": {
+    "body": [
+      "борштанга",
+      "зенкер",
+      "зенковка",
+      "пила",
+      "резец",
+      "резьбофреза",
+      "фреза"
+    ],
+    "thread": [
+      "метчик",
+      "плашка",
+      "резьбофреза"
+    ],
+    "axial": [
+      "зенкер",
+      "зенковка",
+      "метчик",
+      "развертка",
+      "резьбофреза",
+      "сверло"
+    ]
+  },
+  "labels": {
+    "diameter": "Ø, мм",
+    "l1": "l1, мм",
+    "length": "L, мм",
+    "z": "z — число зубьев",
+    "shank": "d хвостовика, мм",
+    "radius": "r, мм",
+    "insert_designation": "Обозначение сменной пластины",
+    "insert_count": "Гнезда для пластин",
+    "thread_insert_designation": "Резьбовая пластина",
+    "plate_designation": "Канавочная / отрезная пластина",
+    "chipbreaker": "Тип стружколома",
+    "insert_material": "Материал пластины",
+    "pitch": "Шаг резьбы, мм",
+    "thread_size": "Размер резьбы",
+    "thread_standard": "Стандарт резьбы",
+    "thread_hand": "Направление резьбы",
+    "hole_type": "Исполнение отверстия",
+    "coolant": "Подача СОЖ",
+    "fixture_group": "Группа оснастки",
+    "fixture_type": "Подтип оснастки",
+    "interface": "Интерфейс",
+    "interface_size": "Размер интерфейса",
+    "orientation": "Исполнение",
+    "range": "Диапазон зажима / отверстия",
+    "reach": "Рабочий вылет, мм",
+    "jaw_width": "Ширина губок / корпуса, мм",
+    "accuracy": "Точность / биение, мм",
+    "bore_min": "Мин. диаметр растачивания, мм",
+    "bore_max": "Макс. диаметр растачивания, мм",
+    "vise_opening": "Максимальное раскрытие, мм",
+    "jaw_height": "Высота губок, мм",
+    "clamp_diameter": "Диаметр зажима, мм",
+    "max_rpm": "Максимальные обороты, об/мин",
+    "bushing_outer": "Наружный конус",
+    "bushing_inner": "Внутренний конус",
+    "set_components": "Состав набора",
+    "extra": "Другие параметры",
+    "insert_iso": "Обозначение ISO 1832",
+    "insert_kind": "Исполнение пластины",
+    "material_groups": "Материалы ISO 513",
+    "material_group": "Материал ISO 513",
+    "has_been_regrind": "Перетачивался",
+    "regrind_source_code": "Исходная карточка"
+  }
+}

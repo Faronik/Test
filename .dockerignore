@@ -1,0 +1,8 @@
+.git
+build
+__pycache__
+data
+.env
+legacy
+*.zip
+tests
