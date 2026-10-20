@@ -87,7 +87,9 @@ try {
         $installed = $true
         if ($p.ExitCode -ne 0) {
             $details = if (Test-Path "$serviceRoot/data/logs/setup-error.log") { Get-Content "$serviceRoot/data/logs/setup-error.log" -Raw } else { 'No service setup error log was created.' }
-            throw "Installer run $round failed ($($p.ExitCode)): $details"
+            $nativeLog = if (Test-Path "$serviceRoot/data/logs/server.log") { Get-Content "$serviceRoot/data/logs/server.log" -Raw } else { 'No native server log was created.' }
+            $serviceInfo = Get-CimInstance Win32_Service -Filter "Name='Toolstock'" | Select-Object Name,PathName,StartName,State,ExitCode,ServiceSpecificExitCode | Format-List | Out-String
+            throw "Installer run $round failed ($($p.ExitCode)): $details`nNative log: $nativeLog`nService: $serviceInfo"
         }
         Check ($p.ExitCode -eq 0) "Installer run $round succeeds"
         Check ((Get-Service Toolstock).Status -eq 'Running') "Service runs after install/upgrade $round"
