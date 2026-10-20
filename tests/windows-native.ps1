@@ -53,7 +53,7 @@ try {
     }
     $configPath = Join-Path $package 'toolstock.json'
     [IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
-    $process = Start-Process -FilePath "$package/toolstock.exe" -ArgumentList "--config `"$configPath`"" -WorkingDirectory $temp -RedirectStandardOutput "$temp/server.out" -RedirectStandardError "$temp/server.err" -PassThru
+    $process = Start-Process -FilePath "$package/toolstock.exe" -ArgumentList "--config `"$configPath`"" -Environment @{PGHOST='invalid-config-must-override.example'; PGPORT='1'; PGDATABASE='invalid'; PGUSER='invalid'; PGPASSWORD='invalid'} -WorkingDirectory $temp -RedirectStandardOutput "$temp/server.out" -RedirectStandardError "$temp/server.err" -PassThru
     $healthy = $false
     for ($i=0; $i -lt 60; $i++) {
         try { if ((Invoke-RestMethod "$env:TOOLSTOCK_TEST_URL/health").status -eq 'ok') { $healthy=$true; break } } catch { }

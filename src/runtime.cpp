@@ -1,7 +1,6 @@
 #include "runtime.hpp"
 #include "core.hpp"
 #include <atomic>
-#include <cstdio>
 #include <iostream>
 #include <mutex>
 #ifdef _WIN32
@@ -18,6 +17,41 @@ SERVICE_STATUS_HANDLE status_handle = nullptr;
 SERVICE_STATUS status{};
 std::function<int()> application;
 int service_result = 1;
+// Services have no console. Redirect C++ streams through ONE file handle;
+// reopening stdout/stderr separately can fail under the Windows CRT sharing rules.
+class LogBuffer final : public std::streambuf {
+    std::ofstream file_;
+    std::mutex mutex_;
+protected:
+    std::streamsize xsputn(const char* data, std::streamsize count) override {
+        std::lock_guard<std::mutex> guard(mutex_);
+        file_.write(data, count);
+        file_.flush();
+        return file_ ? count : 0;
+    }
+    int_type overflow(int_type value) override {
+        if (traits_type::eq_int_type(value, traits_type::eof())) return traits_type::not_eof(value);
+        auto c = traits_type::to_char_type(value);
+        return xsputn(&c, 1) == 1 ? value : traits_type::eof();
+    }
+    int sync() override {
+        std::lock_guard<std::mutex> guard(mutex_);
+        file_.flush();
+        return file_ ? 0 : -1;
+    }
+public:
+    explicit LogBuffer(const fs::path& path) : file_(path, std::ios::app | std::ios::binary) {
+        if (!file_) throw std::runtime_error("Cannot open service log");
+    }
+};
+struct LogRedirect {
+    LogBuffer buffer;
+    std::streambuf* out;
+    std::streambuf* error;
+    explicit LogRedirect(const fs::path& path) : buffer(path), out(std::cout.rdbuf(&buffer)), error(std::cerr.rdbuf(&buffer)) {}
+    ~LogRedirect() { std::cout.flush(); std::cerr.flush(); std::cout.rdbuf(out); std::cerr.rdbuf(error); }
+};
+std::unique_ptr<LogRedirect> log_redirect;
 void report(DWORD state, DWORD error = NO_ERROR) {
     status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
     status.dwCurrentState = state;
@@ -112,8 +146,7 @@ Options configure(int argc, char** argv) {
         auto path = fs::u8path(log);
         fs::create_directories(path.parent_path());
 #ifdef _WIN32
-        FILE* file = nullptr;
-        if (_wfreopen_s(&file, path.c_str(), L"a", stderr) || _wfreopen_s(&file, path.c_str(), L"a", stdout)) throw std::runtime_error("Cannot open service log");
+        log_redirect = std::make_unique<LogRedirect>(path);
 #endif
     }
     return options;

@@ -32,7 +32,13 @@ jobs:
           restore-keys: windows-static-
       - name: Build standalone C++ server and installer
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -VcpkgRoot "$PWD/build/vcpkg" -Installer
+        run: |
+          try { ./scripts/build-windows.ps1 -VcpkgRoot "$PWD/build/vcpkg" -Installer }
+          catch {
+            $message = ($_ | Out-String).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Host "::error title=Windows package build failed::$message"
+            throw
+          }
       - name: Exercise native server, service and installer
         shell: pwsh
         run: |
